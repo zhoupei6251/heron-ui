@@ -5,6 +5,7 @@ import request from '@/utils/request';
 import type {
   NewsDraftForm,
   NewsGenerateForm,
+  NewsPublishForm,
   NewsReviewForm,
   NewsVideoVersion,
   NewsWork,
@@ -42,6 +43,15 @@ export const reviewNewsVersion = (
   data: NewsReviewForm
 ): AxiosPromise<NewsVideoVersion> => {
   return request({ url: `/heron/newsWork/${workId}/versions/${versionId}/review`, method: 'post', data });
+};
+
+/** 人工发布后回填回执；同一版本重复提交由后端幂等回放，不会多出一条发布记录。 */
+export const publishNewsVersion = (
+  workId: string,
+  versionId: string,
+  data: NewsPublishForm
+): AxiosPromise<NewsVideoVersion> => {
+  return request({ url: `/heron/newsWork/${workId}/versions/${versionId}/publish`, method: 'post', data });
 };
 
 /**

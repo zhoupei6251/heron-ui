@@ -2,6 +2,9 @@ import type { ProductionFile, ProductionStatus, ProductionTask } from '@/api/her
 
 export type NewsReviewStatus = 'pending' | 'approved' | 'rejected';
 
+/** 发布来源必须区分开：v1 只有人工回填，接开放平台后才有 api，历史数据口径靠它判断。 */
+export type NewsPublishSource = 'manual' | 'api';
+
 export interface NewsWorkQuery extends PageQuery {
   title?: string;
   candidateId?: string;
@@ -22,6 +25,12 @@ export interface NewsVideoVersion {
   reviewReason?: string;
   reviewContactSha?: string;
   reviewVideoSha?: string;
+  publishSource?: NewsPublishSource;
+  publishUrl?: string;
+  publishAccount?: string;
+  publishAt?: string;
+  publishBy?: string | number;
+  publishVideoSha?: string;
   createTime?: string;
   taskStatus?: ProductionStatus;
   artifacts?: ProductionFile[];
@@ -61,4 +70,11 @@ export interface NewsReviewForm {
   contactSha256: string;
   videoSha256: string;
   reason?: string;
+}
+
+export interface NewsPublishForm {
+  workUrl: string;
+  account: string;
+  publishedAt: string;
+  videoSha256: string;
 }

@@ -44,6 +44,14 @@
             <span v-else>未生成</span>
           </template>
         </el-table-column>
+        <el-table-column label="发布" width="110" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.currentVersion?.publishSource" type="success">
+              {{ publishSourceText[row.currentVersion.publishSource] || row.currentVersion.publishSource }}
+            </el-tag>
+            <span v-else>未发布</span>
+          </template>
+        </el-table-column>
         <el-table-column label="进行中任务" width="120" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.activeTask" :type="productionStatusTag[row.activeTask.status] || 'info'">
@@ -92,10 +100,10 @@
             <el-input v-model="draftForm.draft" type="textarea" :rows="7" maxlength="16000" show-word-limit />
           </el-form-item>
           <el-form-item label="模板" prop="templateKey">
-            <el-input v-model="draftForm.templateKey" class="w-[180px]" placeholder="a-zA-Z0-9_- 至多 80" />
+            <el-input v-model="draftForm.templateKey" class="w-[180px]" disabled />
           </el-form-item>
           <el-form-item label="音色" prop="voiceKey">
-            <el-input v-model="draftForm.voiceKey" class="w-[180px]" placeholder="a-zA-Z0-9_- 至多 80" />
+            <el-input v-model="draftForm.voiceKey" class="w-[180px]" disabled />
           </el-form-item>
           <el-form-item>
             <div class="toolbar-actions">
@@ -265,6 +273,61 @@
               <el-descriptions-item label="理由">{{ selected.reviewReason || '-' }}</el-descriptions-item>
             </el-descriptions>
           </template>
+
+          <template v-if="selected.reviewStatus === 'approved'">
+            <h4 class="section-title">人工发布回执</h4>
+            <el-descriptions v-if="selected.publishSource" :column="1" border>
+              <el-descriptions-item label="来源">
+                <el-tag type="success">{{ publishSourceText[selected.publishSource] || selected.publishSource }}</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="作品链接">{{ selected.publishUrl || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="发布账号">{{ selected.publishAccount || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="发布时间">{{ timeText(selected.publishAt) }}</el-descriptions-item>
+              <el-descriptions-item label="成片指纹">
+                <span class="sha-text">{{ selected.publishVideoSha || '-' }}</span>
+              </el-descriptions-item>
+            </el-descriptions>
+            <el-form v-else ref="publishFormRef" :model="publishForm" :rules="publishRules" label-width="88px">
+              <el-alert
+                class="mb-2"
+                type="info"
+                :closable="false"
+                show-icon
+                title="先在抖音人工发布本版本成片，再回填链接、账号与发布时间；同一版本重复回填不会产生第二条记录。"
+              />
+              <el-form-item label="作品链接" prop="workUrl">
+                <el-input v-model="publishForm.workUrl" maxlength="2048" placeholder="https://www.douyin.com/video/…" />
+              </el-form-item>
+              <el-form-item label="发布账号" prop="account">
+                <el-input v-model="publishForm.account" maxlength="120" placeholder="发布所用的账号标识" />
+              </el-form-item>
+              <el-form-item label="发布时间" prop="publishedAt">
+                <el-date-picker
+                  v-model="publishForm.publishedAt"
+                  type="datetime"
+                  format="YYYY-MM-DD HH:mm:ss"
+                  value-format="YYYY-MM-DD HH:mm:ss"
+                  placeholder="实际发布时间"
+                />
+              </el-form-item>
+              <el-form-item label="合规确认">
+                <el-checkbox v-model="publishConfirmed">
+                  我已确认成片带「内容由 AI 生成」声明与来源标注（{{ shortSha(videoSha) }}）
+                </el-checkbox>
+              </el-form-item>
+              <el-form-item>
+                <el-button
+                  v-hasPermi="['heron:newsWork:publish']"
+                  :loading="publishing"
+                  :disabled="!publishConfirmed"
+                  type="primary"
+                  @click="handlePublish"
+                >
+                  回填发布回执
+                </el-button>
+              </el-form-item>
+            </el-form>
+          </template>
         </template>
       </template>
     </el-drawer>
@@ -275,6 +338,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type {
   NewsDraftForm,
+  NewsPublishForm,
   NewsReviewForm,
   NewsVideoVersion,
   NewsWork,
@@ -287,6 +351,7 @@ import {
   getNewsWork,
   listNewsVersions,
   listNewsWork,
+  publishNewsVersion,
   reviewNewsVersion,
   saveNewsDraft
 } from '@/api/heron/newsWork';
@@ -306,6 +371,8 @@ const reviewTag: Record<string, 'info' | 'success' | 'danger'> = {
   approved: 'success',
   rejected: 'danger'
 };
+// 两种来源必须分开显示：接了开放平台后历史数据才分得清
+const publishSourceText: Record<string, string> = { manual: '人工已发布', api: 'API 已发布' };
 
 const works = ref<NewsWork[]>([]);
 const total = ref(0);
@@ -314,12 +381,22 @@ const { showSearch } = useSearchToggle();
 const queryFormRef = ref<ElFormInstance>();
 const draftFormRef = ref<ElFormInstance>();
 const reviewFormRef = ref<ElFormInstance>();
+const publishFormRef = ref<ElFormInstance>();
 
 const queryParams = ref<NewsWorkQuery>({ pageNum: 1, pageSize: 10, title: undefined });
 const { dialog: workDialog } = useDialogState('新闻作品');
 
 const work = ref<NewsWork>();
-const draftForm = ref<NewsDraftForm>({ expectedRevision: 0, title: '', draft: '', templateKey: '', voiceKey: '' });
+// 模板与音色由部署侧锁定（heron.news.production-assets），自由文本必然撞上 503 news_assets_unavailable
+const LOCKED_TEMPLATE_KEY = 'news-9x16';
+const LOCKED_VOICE_KEY = 'zh-CN-XiaoxiaoNeural';
+const draftForm = ref<NewsDraftForm>({
+  expectedRevision: 0,
+  title: '',
+  draft: '',
+  templateKey: LOCKED_TEMPLATE_KEY,
+  voiceKey: LOCKED_VOICE_KEY
+});
 const savingDraft = ref(false);
 const generating = ref(false);
 const versionLoading = ref(false);
@@ -330,6 +407,9 @@ const selected = ref<NewsVideoVersion>();
 const reviewing = ref(false);
 const fingerprintsConfirmed = ref(false);
 const reviewForm = ref<NewsReviewForm>({ decision: 'approved', contactSha256: '', videoSha256: '', reason: '' });
+const publishing = ref(false);
+const publishConfirmed = ref(false);
+const publishForm = ref<NewsPublishForm>({ workUrl: '', account: '', publishedAt: '', videoSha256: '' });
 const previewUrl = ref('');
 const previewKind = ref('');
 const capabilities = ref<ProductionCapabilities>();
@@ -353,6 +433,14 @@ const draftRules: Record<string, any> = {
 const reviewRules: Record<string, any> = {
   decision: [{ required: true, message: '请选择决议', trigger: 'change' }],
   reason: [{ required: true, message: '驳回必须写明理由', trigger: 'blur' }]
+};
+const publishRules: Record<string, any> = {
+  workUrl: [
+    { required: true, message: '作品链接不能为空', trigger: 'blur' },
+    { pattern: /^https:\/\/([a-z0-9-]+\.)+douyin\.com\/.+$/i, message: '只接受 douyin.com 的 https 作品链接', trigger: 'blur' }
+  ],
+  account: [{ required: true, max: 120, message: '发布账号不能为空且不超过 120 字', trigger: 'blur' }],
+  publishedAt: [{ required: true, message: '发布时间不能为空', trigger: 'change' }]
 };
 
 const contactSha = computed(() => artifact('contact_sheet')?.sha256 || '');
@@ -428,8 +516,8 @@ const reloadWork = async (workId: string) => {
     expectedRevision: res.data.revision,
     title: res.data.title,
     draft: res.data.draft || '',
-    templateKey: res.data.templateKey || 'default',
-    voiceKey: res.data.voiceKey || 'default'
+    templateKey: LOCKED_TEMPLATE_KEY,
+    voiceKey: LOCKED_VOICE_KEY
   };
 };
 
@@ -450,6 +538,13 @@ const selectVersion = (row?: NewsVideoVersion) => {
   releasePreview();
   fingerprintsConfirmed.value = false;
   reviewForm.value = { decision: 'approved', contactSha256: '', videoSha256: '', reason: '' };
+  publishConfirmed.value = false;
+  publishForm.value = {
+    workUrl: '',
+    account: '',
+    publishedAt: (parseTime(new Date(), '{y}-{m}-{d} {h}:{i}:{s}') as string) || '',
+    videoSha256: ''
+  };
   selected.value = row;
 };
 
@@ -538,6 +633,28 @@ const handleReview = () => {
       await loadVersions();
     } finally {
       reviewing.value = false;
+    }
+  });
+};
+
+const toUtcText = (value: string) => new Date(value.replace(' ', 'T')).toISOString().slice(0, 19).replace('T', ' ');
+
+/** 发布回执绑定当前版本的 MP4 指纹；时间存 UTC 墙钟，本机直填会被判成未来时间 */
+const handlePublish = () => {
+  publishFormRef.value?.validate(async (valid: boolean) => {
+    if (!valid || !work.value || !selected.value || !videoSha.value) return;
+    publishing.value = true;
+    try {
+      const res = await publishNewsVersion(work.value.workId, selected.value.versionId, {
+        ...publishForm.value,
+        publishedAt: toUtcText(publishForm.value.publishedAt),
+        videoSha256: videoSha.value
+      });
+      modal.msgSuccess('发布回执已记录');
+      selectVersion(res.data);
+      await Promise.all([loadVersions(), reloadWork(work.value.workId)]);
+    } finally {
+      publishing.value = false;
     }
   });
 };
