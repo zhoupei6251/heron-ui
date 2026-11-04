@@ -143,6 +143,15 @@
             <template v-if="liveTask.progress != null">　进度 {{ liveTask.progress }}%</template>
           </template>
           <div v-if="liveTask.errorReason" class="task-reason">{{ liveTask.errorReason }}</div>
+          <el-button
+            v-if="isProductionActive(liveTask.status)"
+            v-hasPermi="['heron:production:cancel']"
+            link
+            type="warning"
+            @click="handleCancelTask"
+          >
+            取消这次生成
+          </el-button>
         </el-alert>
 
         <h4 class="section-title">版本</h4>
@@ -158,14 +167,15 @@
           </el-table-column>
           <el-table-column label="任务状态" width="110" align="center">
             <template #default="{ row }">
-              <el-tag :type="productionStatusTag[row.taskStatus || ''] || 'info'">
+              <el-tag :type="productionStatusTag[row.taskStatus || ''] || 'info'" :title="row.taskErrorReason || ''">
                 {{ productionStatusText[row.taskStatus || ''] || row.taskStatus || '-' }}
               </el-tag>
             </template>
           </el-table-column>
           <el-table-column label="审片" width="100" align="center">
             <template #default="{ row }">
-              <el-tag :type="reviewTag[row.reviewStatus] || 'info'">
+              <span v-if="row.taskStatus !== 'succeeded'">-</span>
+              <el-tag v-else :type="reviewTag[row.reviewStatus] || 'info'">
                 {{ reviewText[row.reviewStatus] || row.reviewStatus }}
               </el-tag>
             </template>
@@ -250,7 +260,7 @@
           </el-table>
           <p v-if="selected.checks && !checkRows.length" class="revision-tip">门禁记录无法解析，请核对原始数据。</p>
 
-          <template v-if="selected.reviewStatus === 'pending'">
+          <template v-if="selected.taskStatus === 'succeeded' && selected.reviewStatus === 'pending'">
             <h4 class="section-title">人工审片</h4>
             <el-form ref="reviewFormRef" :model="reviewForm" :rules="reviewRules" label-width="88px">
               <el-form-item label="决议" prop="decision">
@@ -280,6 +290,15 @@
               </el-form-item>
             </el-form>
           </template>
+          <el-alert
+            v-else-if="selected.reviewStatus === 'pending'"
+            class="mt-2"
+            type="error"
+            :closable="false"
+            show-icon
+            :title="`这一版没有可审的成片（任务状态 ${productionStatusText[selected.taskStatus || ''] || selected.taskStatus || '-'}${selected.taskErrorCode ? '，' + selected.taskErrorCode : ''}）`"
+            :description="selected.taskErrorReason || '失败原因未记录，可到任务中心查该任务的阶段与用量。'"
+          />
           <template v-else>
             <el-descriptions class="mt-2" :column="1" border>
               <el-descriptions-item label="审片结论">
@@ -371,7 +390,7 @@ import {
   reviewNewsVersion,
   saveNewsDraft
 } from '@/api/heron/newsWork';
-import { getProduction, getProductionCapabilities } from '@/api/heron/production';
+import { getProduction, getProductionCapabilities, cancelProduction } from '@/api/heron/production';
 import { useLoading } from '@/hooks/async/useLoading';
 import { useDialogState } from '@/hooks/dialog/useDialogState';
 import { useSearchReset } from '@/hooks/form/useSearchReset';
@@ -379,6 +398,7 @@ import { useSearchToggle } from '@/hooks/form/useSearchToggle';
 import modal from '@/plugins/modal';
 import { download } from '@/utils/request';
 import { parseTime } from '@/utils/ruoyi';
+import { utcText } from '../../heron-time';
 import { isProductionActive, productionStatusTag, productionStatusText } from '../../production/task-state';
 
 const reviewText: Record<string, string> = { pending: '待审片', approved: '已通过', rejected: '已驳回' };
@@ -483,7 +503,7 @@ const capabilityReasons = computed(() => {
   return [`新闻生成当前不可用：${news.reasons.join('；')}`];
 });
 
-const timeText = (value?: string) => (value ? (parseTime(value, '{y}-{m}-{d} {h}:{i}:{s}') as string) : '-');
+const timeText = utcText;
 const shortSha = (value?: string) => (value ? value.slice(0, 12) + '…' : '缺产物');
 
 function artifact(kind: string) {
@@ -642,6 +662,18 @@ const handleGenerate = async () => {
   } finally {
     generating.value = false;
   }
+};
+
+/** 就地取消：执行中的任务先进入取消中，进程确认停止后才算已取消；轮询会自己把结局带回来。 */
+const handleCancelTask = async () => {
+  if (!liveTask.value) return;
+  try {
+    await modal.confirm('确定取消这次生成？执行中的渲染会先收到停止信号，确认进程退出后才显示已取消。');
+  } catch {
+    return;
+  }
+  await cancelProduction(liveTask.value.taskId);
+  modal.msgSuccess('已提交取消');
 };
 
 /** 预览取回 blob：产物受登录态保护，不能用直链 */

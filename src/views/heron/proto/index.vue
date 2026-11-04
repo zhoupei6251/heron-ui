@@ -195,6 +195,15 @@
             <template v-if="liveTask.progress != null">　进度 {{ liveTask.progress }}%</template>
           </template>
           <div v-if="liveTask.errorReason" class="task-reason">{{ liveTask.errorReason }}</div>
+          <el-button
+            v-if="isProductionActive(liveTask.status)"
+            v-hasPermi="['heron:production:cancel']"
+            link
+            type="warning"
+            @click="handleCancelTask"
+          >
+            取消这次生成
+          </el-button>
         </el-alert>
 
         <h4 class="section-title">历史版本</h4>
@@ -209,7 +218,7 @@
           <el-table-column label="版本" prop="versionNo" width="70" align="center" />
           <el-table-column label="任务状态" width="110" align="center">
             <template #default="{ row }">
-              <el-tag v-if="row.status" :type="productionStatusTag[row.status]">
+              <el-tag v-if="row.status" :type="productionStatusTag[row.status]" :title="row.errorReason || ''">
                 {{ productionStatusText[row.status] }}
               </el-tag>
               <span v-else>-</span>
@@ -217,7 +226,8 @@
           </el-table-column>
           <el-table-column label="审核" width="100" align="center">
             <template #default="{ row }">
-              <el-tag :type="reviewTag[row.reviewStatus]">
+              <span v-if="row.status !== 'succeeded'">-</span>
+              <el-tag v-else :type="reviewTag[row.reviewStatus]">
                 {{ reviewText[row.reviewStatus] || row.reviewStatus }}
               </el-tag>
             </template>
@@ -331,7 +341,7 @@
 
           <h4 class="section-title">人工审核</h4>
           <el-form
-            v-if="selected.reviewStatus === 'pending'"
+            v-if="selected.reviewStatus === 'pending' && selected.status === 'succeeded'"
             ref="reviewFormRef"
             :model="reviewForm"
             label-width="96px"
@@ -363,6 +373,15 @@
               <span v-if="!rpSha || !previewSha" class="form-tip">该版本还缺原生文件或预览汇总，无法审核。</span>
             </el-form-item>
           </el-form>
+          <el-alert
+            v-else-if="selected.reviewStatus === 'pending'"
+            class="mb-2"
+            type="error"
+            :closable="false"
+            show-icon
+            :title="`这一版没有可审的产物（任务状态 ${productionStatusText[selected.status || ''] || selected.status || '-'}${selected.errorCode ? '，' + selected.errorCode : ''}）`"
+            :description="selected.errorReason || '失败原因未记录，可到任务中心查该任务的阶段与用量。'"
+          />
           <el-descriptions v-else :column="2" border size="small">
             <el-descriptions-item label="决议">{{ reviewText[selected.reviewStatus] }}</el-descriptions-item>
             <el-descriptions-item label="审核人">{{ selected.reviewBy ?? '-' }}</el-descriptions-item>
@@ -484,7 +503,7 @@ import type {
   ProtoVerificationForm,
   ProtoVersion
 } from '@/api/heron/proto/types';
-import { getProduction, getProductionCapabilities } from '@/api/heron/production';
+import { cancelProduction, getProduction, getProductionCapabilities } from '@/api/heron/production';
 import {
   addProtoProject,
   archiveProtoProject,
@@ -506,7 +525,7 @@ import { useSearchReset } from '@/hooks/form/useSearchReset';
 import { useSearchToggle } from '@/hooks/form/useSearchToggle';
 import modal from '@/plugins/modal';
 import { download } from '@/utils/request';
-import { parseTime } from '@/utils/ruoyi';
+import { utcText } from '../heron-time';
 import { isProductionActive, productionStatusTag, productionStatusText } from '../production/task-state';
 
 const reviewText: Record<string, string> = { pending: '待审核', approved: '已通过', rejected: '已驳回' };
@@ -624,7 +643,7 @@ const capabilityReasons = computed(() => {
 /** 目标 Axure 版本由部署配置给出：让操作员逐字确认，而不是猜一个后端认识的字符串。 */
 const targetAxure = computed(() => capabilities.value?.prototype?.targetAxureVersion || '');
 
-const timeText = (value?: string) => (value ? (parseTime(value, '{y}-{m}-{d} {h}:{i}:{s}') as string) : '-');
+const timeText = utcText;
 const shortValue = (value?: string, size = 8) => (value ? value.slice(0, size) + '…' : '-');
 const sizeText = (bytes?: number) => (bytes == null ? '-' : `${(bytes / 1024).toFixed(1)} KiB`);
 const boolText = (value?: boolean) => (value === undefined ? '未知' : value ? '通过' : '未通过');
@@ -823,6 +842,18 @@ const handleGenerate = async () => {
   } finally {
     generating.value = false;
   }
+};
+
+/** 就地取消：引擎子进程先收停止信号，确认退出后才算已取消；轮询会把结局带回来。 */
+const handleCancelTask = async () => {
+  if (!liveTask.value) return;
+  try {
+    await modal.confirm('确定取消这次装配？引擎子进程会先收到停止信号，确认退出后才显示已取消。');
+  } catch {
+    return;
+  }
+  await cancelProduction(liveTask.value.taskId);
+  modal.msgSuccess('已提交取消');
 };
 
 /** 预览取回 blob：产物受登录态保护，不能用直链 */

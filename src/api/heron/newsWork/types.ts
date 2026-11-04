@@ -33,6 +33,8 @@ export interface NewsVideoVersion {
   publishVideoSha?: string;
   createTime?: string;
   taskStatus?: ProductionStatus;
+  taskErrorCode?: string;
+  taskErrorReason?: string;
   artifacts?: ProductionFile[];
 }
 

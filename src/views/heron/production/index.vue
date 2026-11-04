@@ -83,10 +83,10 @@
         </el-table-column>
         <el-table-column label="尝试" prop="attemptNo" width="70" />
         <el-table-column label="开始时间" width="165">
-          <template #default="{ row }">{{ parseTime(row.startedAt) || '-' }}</template>
+          <template #default="{ row }">{{ utcText(row.startedAt) }}</template>
         </el-table-column>
         <el-table-column label="结束时间" width="165">
-          <template #default="{ row }">{{ parseTime(row.finishedAt) || '-' }}</template>
+          <template #default="{ row }">{{ utcText(row.finishedAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
@@ -132,8 +132,8 @@
             <el-descriptions-item label="进度">{{ detail.progress ?? 0 }}%</el-descriptions-item>
             <el-descriptions-item label="尝试次数">{{ detail.attemptNo ?? '-' }}</el-descriptions-item>
             <el-descriptions-item label="版本">{{ detail.versionId || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="开始时间">{{ parseTime(detail.startedAt) || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="结束时间">{{ parseTime(detail.finishedAt) || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="开始时间">{{ utcText(detail.startedAt) }}</el-descriptions-item>
+            <el-descriptions-item label="结束时间">{{ utcText(detail.finishedAt) }}</el-descriptions-item>
           </el-descriptions>
 
           <el-alert
@@ -149,10 +149,10 @@
             <el-table-column label="阶段" prop="stage" width="110" />
             <el-table-column label="状态" prop="status" width="90" />
             <el-table-column label="开始" width="160">
-              <template #default="{ row }">{{ parseTime(row.startedAt) || '-' }}</template>
+              <template #default="{ row }">{{ utcText(row.startedAt) }}</template>
             </el-table-column>
             <el-table-column label="结束" width="160">
-              <template #default="{ row }">{{ parseTime(row.finishedAt) || '-' }}</template>
+              <template #default="{ row }">{{ utcText(row.finishedAt) }}</template>
             </el-table-column>
             <el-table-column label="错误" prop="errorReason" show-overflow-tooltip />
             <el-table-column label="证据" min-width="120" show-overflow-tooltip>
@@ -202,7 +202,7 @@ import { useSearchReset } from '@/hooks/form/useSearchReset';
 import { useSearchToggle } from '@/hooks/form/useSearchToggle';
 import modal from '@/plugins/modal';
 import { checkPermi } from '@/utils/permission';
-import { parseTime } from '@/utils/ruoyi';
+import { utcText } from '../heron-time';
 import { isProductionActive, productionBizText, productionStatusTag, productionStatusText } from './task-state';
 
 const { loading, withLoading } = useLoading(true);

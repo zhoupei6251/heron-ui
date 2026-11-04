@@ -168,7 +168,7 @@ import { useFormDialog } from '@/hooks/dialog/useFormDialog';
 import { useSearchReset } from '@/hooks/form/useSearchReset';
 import { useSearchToggle } from '@/hooks/form/useSearchToggle';
 import modal from '@/plugins/modal';
-import { parseTime } from '@/utils/ruoyi';
+import { utcText } from '../../heron-time';
 
 interface EvidenceItem {
   sourceId?: string | number;
@@ -235,7 +235,7 @@ const evidenceTruncated = computed(() => {
   }
 });
 
-const timeText = (value?: string) => (value ? (parseTime(value, '{y}-{m}-{d} {h}:{i}:{s}') as string) : '-');
+const timeText = utcText;
 
 /** 查询候选新闻列表 */
 const getList = async () => {

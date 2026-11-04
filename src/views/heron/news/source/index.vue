@@ -170,7 +170,7 @@ import { useFormDialog } from '@/hooks/dialog/useFormDialog';
 import { useSearchReset } from '@/hooks/form/useSearchReset';
 import { useSearchToggle } from '@/hooks/form/useSearchToggle';
 import modal from '@/plugins/modal';
-import { parseTime } from '@/utils/ruoyi';
+import { utcText } from '../../heron-time';
 
 const sourceTypeText: Record<string, string> = { rss: 'RSS', atom: 'Atom', text: '文本' };
 
@@ -228,7 +228,7 @@ const {
   initialFormData: initFormData
 });
 
-const timeText = (value?: string) => (value ? (parseTime(value, '{y}-{m}-{d} {h}:{i}:{s}') as string) : '-');
+const timeText = utcText;
 
 /** 查询来源列表 */
 const getList = async () => {

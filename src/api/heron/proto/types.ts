@@ -133,6 +133,8 @@ export interface ProtoVersion {
   versionNo: number;
   taskId?: string;
   status?: ProductionStatus;
+  errorCode?: string;
+  errorReason?: string;
   engineCommit?: string;
   reviewStatus: ProtoReviewStatus;
   reviewBy?: string | number;
