@@ -1,4 +1,4 @@
-import type { ProductionFile, ProductionStatus } from '@/api/heron/production/types';
+import type { ProductionFile, ProductionStatus, ProductionTask } from '@/api/heron/production/types';
 
 export type ProtoReviewStatus = 'pending' | 'approved' | 'rejected';
 
@@ -19,6 +19,7 @@ export interface ProtoProject {
   nextVersion: number;
   currentVersionId?: string;
   activeTaskId?: string;
+  activeTask?: ProductionTask;
   archived: string;
   createTime?: string;
   updateTime?: string;

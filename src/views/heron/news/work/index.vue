@@ -119,6 +119,7 @@
               <el-button
                 v-hasPermi="['heron:newsWork:generate']"
                 :loading="generating"
+                :disabled="Boolean(work.activeTaskId)"
                 type="primary"
                 @click="handleGenerate"
               >
@@ -128,6 +129,21 @@
             </div>
           </el-form-item>
         </el-form>
+
+        <el-alert
+          v-if="liveTask"
+          class="mb-2"
+          :type="liveTask.status === 'failed' ? 'error' : liveTask.status === 'succeeded' ? 'success' : 'info'"
+          :closable="false"
+          show-icon
+        >
+          <template #title>
+            {{ productionStatusText[liveTask.status] || liveTask.status }}
+            <template v-if="liveTask.stage">　阶段 {{ liveTask.stage }}</template>
+            <template v-if="liveTask.progress != null">　进度 {{ liveTask.progress }}%</template>
+          </template>
+          <div v-if="liveTask.errorReason" class="task-reason">{{ liveTask.errorReason }}</div>
+        </el-alert>
 
         <h4 class="section-title">版本</h4>
         <el-table
@@ -344,7 +360,7 @@ import type {
   NewsWork,
   NewsWorkQuery
 } from '@/api/heron/newsWork/types';
-import type { ProductionCapabilities, ProductionFile } from '@/api/heron/production/types';
+import type { ProductionCapabilities, ProductionFile, ProductionTask } from '@/api/heron/production/types';
 import {
   fetchNewsPreview,
   generateNewsVideo,
@@ -355,7 +371,7 @@ import {
   reviewNewsVersion,
   saveNewsDraft
 } from '@/api/heron/newsWork';
-import { getProductionCapabilities } from '@/api/heron/production';
+import { getProduction, getProductionCapabilities } from '@/api/heron/production';
 import { useLoading } from '@/hooks/async/useLoading';
 import { useDialogState } from '@/hooks/dialog/useDialogState';
 import { useSearchReset } from '@/hooks/form/useSearchReset';
@@ -363,7 +379,7 @@ import { useSearchToggle } from '@/hooks/form/useSearchToggle';
 import modal from '@/plugins/modal';
 import { download } from '@/utils/request';
 import { parseTime } from '@/utils/ruoyi';
-import { productionStatusTag, productionStatusText } from '../../production/task-state';
+import { isProductionActive, productionStatusTag, productionStatusText } from '../../production/task-state';
 
 const reviewText: Record<string, string> = { pending: '待审片', approved: '已通过', rejected: '已驳回' };
 const reviewTag: Record<string, 'info' | 'success' | 'danger'> = {
@@ -499,6 +515,8 @@ const { resetQuery } = useSearchReset({
 
 const openWork = async (row: NewsWork) => {
   releasePreview();
+  stopWatch();
+  liveTask.value = undefined;
   requestKey = newRequestKey();
   selected.value = undefined;
   versions.value = [];
@@ -507,6 +525,9 @@ const openWork = async (row: NewsWork) => {
   workDialog.visible = true;
   await reloadWork(row.workId);
   await loadVersions();
+  if (work.value?.activeTask) {
+    void watchTask(work.value.activeTask.taskId);
+  }
 };
 
 const reloadWork = async (workId: string) => {
@@ -519,6 +540,35 @@ const reloadWork = async (workId: string) => {
     templateKey: LOCKED_TEMPLATE_KEY,
     voiceKey: LOCKED_VOICE_KEY
   };
+};
+
+/**
+ * 生成是分钟级的真渲染，页面不能停在「已受理」。静默盯任务详情而不是重读工作台，
+ * 是为了不覆盖操作员正在输入的草稿；到终态才整页刷新一次。
+ */
+let watchTimer: number | undefined;
+const liveTask = ref<ProductionTask>();
+
+const stopWatch = () => {
+  if (watchTimer !== undefined) {
+    window.clearTimeout(watchTimer);
+    watchTimer = undefined;
+  }
+};
+
+const watchTask = async (taskId: string) => {
+  try {
+    const res = await getProduction(taskId);
+    liveTask.value = res.data;
+    if (isProductionActive(res.data.status)) {
+      // shortcut: 后台标签页会被浏览器降频到约 1 次/分钟；要秒级恢复就照 production/index.vue 补 visibilitychange。
+      watchTimer = window.setTimeout(() => void watchTask(taskId), 2000);
+      return;
+    }
+    await Promise.all([reloadWork(res.data.bizId), loadVersions()]);
+  } catch {
+    stopWatch();
+  }
 };
 
 /** 版本列表 */
@@ -588,6 +638,7 @@ const handleGenerate = async () => {
     requestKey = newRequestKey();
     await reloadWork(work.value.workId);
     await loadVersions();
+    void watchTask(res.data.taskId);
   } finally {
     generating.value = false;
   }
@@ -668,7 +719,10 @@ const loadCapabilities = async () => {
   }
 };
 
-onBeforeUnmount(releasePreview);
+onBeforeUnmount(() => {
+  stopWatch();
+  releasePreview();
+});
 onMounted(() => {
   void loadCapabilities();
   getList();
@@ -686,6 +740,11 @@ onMounted(() => {
 }
 .sha-text {
   font-family: var(--el-font-family-monospace, monospace);
+}
+.task-reason {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 .preview-shell {
   margin-top: 12px;

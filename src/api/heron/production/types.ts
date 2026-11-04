@@ -68,6 +68,8 @@ export interface ProductionCapability {
   available: boolean;
   reasons: string[];
   capacity: number;
+  /** 仅原型线返回：人工原生验证要比对的 Axure 版本，新闻线为空。 */
+  targetAxureVersion?: string;
 }
 
 export interface ProductionCapabilities {
