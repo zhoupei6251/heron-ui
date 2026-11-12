@@ -1,367 +1,599 @@
 <template>
-  <div class="home">
-    <section class="hero-panel">
+  <div class="p-2 heron-home">
+    <section class="home-hero">
       <div class="hero-copy">
-        <h1>Heron 控制台</h1>
-        <p>基于 RuoYi-Vue-Plus 的业务管理工作台，复用账号、权限与系统管理能力。</p>
-        <div class="hero-actions">
-          <el-button type="primary" @click="goTarget('https://gitee.com/dromara/RuoYi-Vue-Plus')">基座源码</el-button>
-          <el-button plain @click="goTarget('https://plus-doc.dromara.org/#/ruoyi-vue-plus/changlog')">
-            基座更新日志
-          </el-button>
+        <span class="eyebrow">Heron Workspace</span>
+        <h1>工作台</h1>
+        <p>{{ greeting }}，{{ nickname }}。今天要处理的事情都在下面。</p>
+      </div>
+      <div class="hero-meta">
+        <div class="meta-item">
+          <span>今天</span>
+          <strong>{{ today }}</strong>
         </div>
       </div>
     </section>
 
-    <div class="content-grid">
-      <section class="section-card">
-        <div class="section-head">
-          <div>
-            <h2>开源基座</h2>
-          </div>
-        </div>
-        <div class="product-list">
-          <article v-for="product in products" :key="product.name" class="product-card">
-            <div class="product-top">
-              <div>
-                <h3>{{ product.name }}</h3>
-                <p>{{ product.summary }}</p>
-              </div>
-              <span class="product-version">{{ product.version }}</span>
-            </div>
-            <div class="product-tags">
-              <el-tag v-for="tag in product.tags" :key="tag" effect="plain">{{ tag }}</el-tag>
-            </div>
-            <div class="product-actions">
-              <el-button type="primary" plain @click="goTarget(product.primaryUrl)">
-                {{ product.primaryLabel }}
-              </el-button>
-              <el-button plain @click="goTarget(product.secondaryUrl)">{{ product.secondaryLabel }}</el-button>
-            </div>
-          </article>
-        </div>
-      </section>
+    <section class="home-stats">
+      <router-link v-for="stat in stats" :key="stat.key" :to="stat.to" class="stat-cell">
+        <span class="stat-label">{{ stat.label }}</span>
+        <strong class="stat-value" :class="{ 'is-alert': stat.alert }">{{ stat.value }}</strong>
+        <span class="stat-hint">{{ stat.hint }}</span>
+      </router-link>
+    </section>
 
-      <section class="section-card capability-card">
-        <div class="section-head">
-          <div>
-            <h2>能力地图</h2>
-          </div>
+    <el-alert v-if="autoPaused" class="auto-bar" type="warning" :closable="false" show-icon>
+      <template #title>自动生产已暂停：槽位不会产出新内容</template>
+      <el-button
+        v-hasPermi="['heron:newsWork:review']"
+        link
+        type="primary"
+        :loading="resuming"
+        @click="handleResume"
+      >
+        恢复自动生产
+      </el-button>
+    </el-alert>
+    <el-alert v-else-if="autoStatus && !autoStatus.enabled" class="auto-bar" type="info" :closable="false" show-icon>
+      <template #title>自动生产未开启</template>
+      当前只在人工触发时产出；开关在部署配置里，不在这个页面。
+    </el-alert>
+
+    <section class="home-section">
+      <header class="section-head">
+        <div>
+          <span class="eyebrow">Needs You</span>
+          <h2>待我处理</h2>
         </div>
-        <div class="capability-groups">
-          <article v-for="group in capabilityGroups" :key="group.title" class="capability-group">
-            <h3>{{ group.title }}</h3>
-            <ul>
-              <li v-for="item in group.items" :key="item">{{ item }}</li>
-            </ul>
-          </article>
+        <span class="section-meta">{{ needs.length }} 件</span>
+      </header>
+
+      <ul v-if="needs.length" class="needs-list">
+        <li v-for="item in needs" :key="item.key" class="need-item" :class="`is-${item.level}`">
+          <span class="need-badge">{{ item.badge }}</span>
+          <span class="need-body">
+            <strong>{{ item.title }}</strong>
+            <span class="need-detail">{{ item.detail }}</span>
+          </span>
+          <router-link :to="item.to" class="need-link">处理</router-link>
+        </li>
+      </ul>
+      <p v-else class="needs-empty">没有需要人工介入的事项。</p>
+    </section>
+
+    <section class="home-section">
+      <header class="section-head">
+        <div>
+          <span class="eyebrow">Quick Access</span>
+          <h2>快速入口</h2>
         </div>
-      </section>
-    </div>
+        <span class="section-meta">{{ entries.length }} 个模块</span>
+      </header>
+
+      <div v-if="entries.length" class="entry-grid">
+        <router-link v-for="entry in entries" :key="entry.path" :to="entry.path" class="entry-card">
+          <span class="entry-icon">
+            <svg-icon v-if="entry.icon && entry.icon !== '#'" :icon-class="entry.icon" />
+            <span v-else class="entry-monogram">{{ entry.title.slice(0, 1) }}</span>
+          </span>
+          <span class="entry-body">
+            <strong>{{ entry.title }}</strong>
+            <span class="entry-path">{{ entry.path }}</span>
+          </span>
+          <span class="entry-arrow" aria-hidden="true">→</span>
+        </router-link>
+      </div>
+
+      <el-empty v-else description="当前账号还没有可访问的模块，请联系管理员分配权限" />
+    </section>
   </div>
 </template>
 
 <script setup name="Index" lang="ts">
-const products = [
-  {
-    name: 'RuoYi-Vue-Plus',
-    version: 'v6.0.0',
-    summary: '面向分布式集群场景的后台管理系统，保持现有业务接口与权限逻辑，适合先完成前端壳升级。',
-    tags: ['Vue 3', 'Element Plus', 'Spring Boot', 'Sa-Token'],
-    primaryLabel: '访问 GitHub',
-    primaryUrl: 'https://github.com/dromara/RuoYi-Vue-Plus',
-    secondaryLabel: '基座更新日志',
-    secondaryUrl: 'https://plus-doc.dromara.org/#/ruoyi-vue-plus/changlog'
-  },
-  {
-    name: 'RuoYi-Cloud-Plus',
-    version: 'v6.0.0',
-    summary: '微服务通用权限管理系统，适合更复杂的服务治理场景，也可以沿用同样的前端升级思路。',
-    tags: ['Spring Cloud', 'Gateway', 'Nacos', 'Dubbo'],
-    primaryLabel: '访问 GitHub',
-    primaryUrl: 'https://github.com/dromara/RuoYi-Cloud-Plus',
-    secondaryLabel: '基座更新日志',
-    secondaryUrl: 'https://plus-doc.dromara.org/#/ruoyi-cloud-plus/changlog'
-  }
-];
+import type { ProductionTask } from '@/api/heron/production/types';
+import type { NewsSource } from '@/api/heron/newsSource/types';
+import type { AutoStatus } from '@/api/heron/auto';
+import { listNewsCandidate } from '@/api/heron/newsCandidate';
+import { listNewsWork } from '@/api/heron/newsWork';
+import { listProduction } from '@/api/heron/production';
+import { listNewsSource } from '@/api/heron/newsSource';
+import { getAutoStatus, resumeAuto } from '@/api/heron/auto';
+import { usePermissionStore } from '@/store/modules/permission';
+import { useUserStore } from '@/store/modules/user';
+import modal from '@/plugins/modal';
+import { utcText } from '@/views/heron/heron-time';
 
-const capabilityGroups = [
-  {
-    title: '后端基建',
-    items: ['Spring Boot / Spring Cloud', 'Sa-Token 认证与权限', 'MySQL / Redis', '代码生成器']
-  },
-  {
-    title: '平台能力',
-    items: ['动态菜单与按钮权限', '监控、日志、在线用户', '任务调度与工作流', '文件存储与多云适配']
-  },
-  {
-    title: '前端方向',
-    items: ['UI 卡片化', '主题与布局统一', '通用页面容器规范化', '企业化布局']
-  }
-];
+const permissionStore = usePermissionStore();
+const userStore = useUserStore();
 
-const goTarget = (url: string) => {
-  window.open(url, '__blank');
+const nickname = computed(() => userStore.nickname || '管理员');
+const greeting = computed(() => {
+  const hour = new Date().getHours();
+  if (hour < 6) return '凌晨好';
+  if (hour < 12) return '上午好';
+  if (hour < 14) return '中午好';
+  if (hour < 18) return '下午好';
+  return '晚上好';
+});
+const today = new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
+
+/** 首页数字全部来自现有列表接口的 total，没有聚合接口前不编造「今日」口径。 */
+const unclaimedTopics = ref<number>();
+const workTotal = ref<number>();
+const runningTasks = ref<number>();
+const failedTasks = ref<ProductionTask[]>([]);
+const failedTaskTotal = ref(0);
+const failingSources = ref<NewsSource[]>([]);
+const autoStatus = ref<AutoStatus>();
+const resuming = ref(false);
+
+const autoPaused = computed(() => Boolean(autoStatus.value?.paused));
+
+type Stat = { key: string; label: string; value: string; hint: string; to: string; alert?: boolean };
+
+const show = (value?: number) => (value === undefined ? '—' : String(value));
+
+const stats = computed<Stat[]>(() => [
+  {
+    key: 'topics',
+    label: '待认领选题',
+    value: show(unclaimedTopics.value),
+    hint: '选题雷达',
+    to: '/heron/topic'
+  },
+  {
+    key: 'works',
+    label: '作品总数',
+    value: show(workTotal.value),
+    hint: '视频作品',
+    to: '/heron/work'
+  },
+  {
+    key: 'running',
+    label: '运行中任务',
+    value: show(runningTasks.value),
+    hint: '生产任务',
+    to: '/heron/production'
+  },
+  {
+    key: 'failed',
+    label: '失败任务',
+    value: show(failedTaskTotal.value),
+    hint: '需要排查',
+    to: '/heron/production',
+    alert: failedTaskTotal.value > 0
+  }
+]);
+
+type Need = { key: string; badge: string; title: string; detail: string; to: string; level: 'error' | 'warning' };
+
+const needs = computed<Need[]>(() => {
+  const items: Need[] = [];
+  failedTasks.value.forEach(task => {
+    items.push({
+      key: `task-${task.taskId}`,
+      badge: '任务失败',
+      title: `${task.bizType === 'news_video' ? '新闻' : '原型'} ${task.taskId}`,
+      detail: [task.stage ? `阶段 ${task.stage}` : '', task.errorCode || '', task.errorReason || '']
+        .filter(Boolean)
+        .join(' · '),
+      to: '/heron/production',
+      level: 'error'
+    });
+  });
+  failingSources.value.forEach(source => {
+    items.push({
+      key: `source-${source.sourceId}`,
+      badge: '来源失败',
+      title: source.name,
+      detail: `连续失败 ${source.failureCount} 次${source.errorCode ? ' · ' + source.errorCode : ''}${
+        source.lastAttemptAt ? ' · 最近 ' + utcText(source.lastAttemptAt) : ''
+      }`,
+      to: '/heron/newsSource',
+      level: 'warning'
+    });
+  });
+  return items;
+});
+
+/** 单个接口失败不影响其余区块：首页是只读看板，不该因为一处 500 就整页空白。 */
+const loadDashboard = async () => {
+  const [topics, works, running, failed, sources, auto] = await Promise.allSettled([
+    listNewsCandidate({ pageNum: 1, pageSize: 1, claimed: false }),
+    listNewsWork({ pageNum: 1, pageSize: 1 }),
+    listProduction({ pageNum: 1, pageSize: 1, status: 'running' }),
+    listProduction({ pageNum: 1, pageSize: 5, status: 'failed' }),
+    listNewsSource({ pageNum: 1, pageSize: 50 }),
+    getAutoStatus()
+  ]);
+
+  if (topics.status === 'fulfilled') unclaimedTopics.value = topics.value.data?.total || 0;
+  if (works.status === 'fulfilled') workTotal.value = works.value.data?.total || 0;
+  if (running.status === 'fulfilled') runningTasks.value = running.value.data?.total || 0;
+  if (failed.status === 'fulfilled') {
+    failedTasks.value = failed.value.data?.rows || [];
+    failedTaskTotal.value = failed.value.data?.total || 0;
+  }
+  if (sources.status === 'fulfilled') {
+    failingSources.value = (sources.value.data?.rows || []).filter(source => source.failureCount > 0).slice(0, 5);
+  }
+  if (auto.status === 'fulfilled') autoStatus.value = auto.value.data;
 };
+
+const handleResume = async () => {
+  resuming.value = true;
+  try {
+    await resumeAuto();
+    modal.msgSuccess('已恢复自动生产');
+    await loadDashboard();
+  } finally {
+    resuming.value = false;
+  }
+};
+
+type Entry = { title: string; path: string; icon?: string };
+type MenuRoute = {
+  path: string;
+  children?: MenuRoute[];
+  meta?: { hidden?: boolean; title?: string; icon?: string };
+};
+
+const joinPath = (base: string, child: string) =>
+  child.startsWith('/') ? child : `${base.replace(/\/$/, '')}/${child.replace(/^\//, '')}`;
+
+const resolvePath = (route: MenuRoute): string | undefined => {
+  const child = route.children?.find(item => !item.meta?.hidden);
+  if (!child) {
+    return route.path;
+  }
+  // 外链子菜单原样返回，交给外层按 http(s) 过滤，别拼成 /parent/http://…
+  return /^https?:/i.test(child.path) ? child.path : joinPath(route.path, child.path);
+};
+
+const entries = computed<Entry[]>(() =>
+  (permissionStore.sidebarRouters as unknown as MenuRoute[])
+    .filter(route => !route.meta?.hidden && route.meta?.title)
+    .map(route => ({
+      title: route.meta?.title || '',
+      path: resolvePath(route) || route.path,
+      icon: route.meta?.icon
+    }))
+    .filter(entry => entry.path && entry.path !== '/' && !/^https?:/i.test(entry.path))
+);
+
+onMounted(() => {
+  void loadDashboard();
+});
 </script>
 
 <style lang="scss" scoped>
-.home {
+.heron-home {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
-.hero-panel,
-.section-card {
-  border-radius: 28px;
+.home-hero,
+.home-section,
+.home-stats {
   border: 1px solid var(--app-surface-border);
+  border-radius: var(--app-radius-base);
   background: var(--app-surface-bg);
-  box-shadow: var(--app-shadow-sm);
-  backdrop-filter: blur(18px);
 }
 
-.hero-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
-  gap: 18px;
-  padding: 30px;
-  background: radial-gradient(circle at top left, rgba(53, 109, 255, 0.16), transparent 30%), var(--app-surface-bg);
-}
-
-.hero-copy {
+.home-hero {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-
-  h1 {
-    margin: 0;
-    font-size: clamp(30px, 4vw, 46px);
-    line-height: 1.06;
-    letter-spacing: -0.04em;
-    color: var(--app-text-title);
-  }
-
-  p {
-    margin: 0;
-    max-width: 760px;
-    color: var(--app-text-muted);
-    font-size: 15px;
-    line-height: 1.8;
-  }
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 24px 24px 20px;
+  border-top: 2px solid var(--app-accent-strong);
 }
 
-.hero-badge {
-  display: inline-flex;
-  width: fit-content;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(53, 109, 255, 0.12);
+.eyebrow {
+  display: block;
   color: var(--app-accent-strong);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+  font-weight: 600;
+  letter-spacing: var(--app-tracking-eyebrow);
   text-transform: uppercase;
 }
 
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 8px;
+.hero-copy h1 {
+  margin: 8px 0 6px;
+  color: var(--app-text-title);
+  font-size: var(--app-font-size-2xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
-.hero-stats {
-  display: grid;
-  gap: 12px;
+.hero-copy p {
+  margin: 0;
+  max-width: 560px;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-sm);
+  line-height: 1.7;
 }
 
-.stat-card {
-  padding: 18px 20px;
-  border-radius: 22px;
-  background: var(--app-elevated-soft-bg);
-  border: 1px solid var(--app-surface-border);
+.hero-meta {
+  flex-shrink: 0;
+}
+
+.meta-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-
-  strong {
-    color: var(--app-text-title);
-    font-size: 24px;
-    letter-spacing: -0.03em;
-  }
+  gap: 4px;
+  padding-left: 16px;
+  border-left: 1px solid var(--app-surface-border);
 
   span {
     color: var(--app-text-muted);
-    font-size: 13px;
+    font-size: var(--app-font-size-2xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  strong {
+    color: var(--app-text-title);
+    font-size: var(--app-font-size-lg);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 }
 
-.content-grid {
+.home-stats {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1px;
+  background: var(--app-surface-border);
+  overflow: hidden;
 }
 
-.section-card {
-  padding: 24px;
+.stat-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px;
+  background: var(--app-surface-bg);
+  color: inherit;
+  transition: background-color var(--app-duration-fast) var(--app-ease);
+
+  &:hover {
+    background: var(--app-accent-softer);
+  }
+}
+
+.stat-label {
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-xs);
+}
+
+.stat-value {
+  color: var(--app-text-title);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+
+  &.is-alert {
+    color: var(--app-danger);
+  }
+}
+
+.stat-hint {
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-2xs);
+}
+
+.auto-bar {
+  margin: 0;
+}
+
+.home-section {
+  padding: 20px 24px 24px;
 }
 
 .section-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 18px;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--app-surface-border);
 
   h2 {
     margin: 6px 0 0;
     color: var(--app-text-title);
-    font-size: 26px;
-    letter-spacing: -0.03em;
+    font-size: var(--app-font-size-lg);
+    font-weight: 600;
   }
 }
 
-.section-kicker {
+.section-meta {
   color: var(--app-text-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--app-font-size-xs);
+  font-variant-numeric: tabular-nums;
 }
 
-.product-list,
-.capability-groups {
-  display: grid;
-  gap: 16px;
-}
-
-.product-card {
-  padding: 22px;
-  border-radius: 24px;
-  background: var(--app-elevated-soft-bg);
+.needs-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   border: 1px solid var(--app-surface-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--app-surface-border);
+}
+
+.need-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--app-surface-bg);
+
+  &.is-error .need-badge {
+    color: var(--app-danger);
+    background: var(--app-danger-soft);
+    border-color: transparent;
+  }
+
+  &.is-warning .need-badge {
+    color: var(--app-warning);
+    background: var(--app-warning-soft);
+    border-color: transparent;
+  }
+}
+
+.need-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--app-surface-border);
+  border-radius: 6px;
+  font-size: var(--app-font-size-2xs);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.need-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+
+  strong {
+    color: var(--app-text-title);
+    font-size: var(--app-font-size-sm);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.need-detail {
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.need-link {
+  flex-shrink: 0;
+  color: var(--app-accent-strong);
+  font-size: var(--app-font-size-xs);
+}
+
+.needs-empty {
+  margin: 0;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-sm);
+}
+
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1px;
+  background: var(--app-surface-border);
+  border: 1px solid var(--app-surface-border);
+  border-radius: var(--app-radius-base);
+  overflow: hidden;
+}
+
+.entry-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--app-surface-bg);
+  color: inherit;
   transition:
-    transform 0.25s ease,
-    box-shadow 0.25s ease,
-    border-color 0.25s ease;
+    background-color var(--app-duration-fast) var(--app-ease),
+    color var(--app-duration-fast) var(--app-ease);
 
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--app-shadow-sm);
-    border-color: rgba(53, 109, 255, 0.2);
-  }
-}
+    background: var(--app-accent-softer);
 
-.product-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-
-  h3 {
-    margin: 0 0 8px;
-    color: var(--app-text-title);
-    font-size: 22px;
-    letter-spacing: -0.03em;
-  }
-
-  p {
-    margin: 0;
-    color: var(--app-text-muted);
-    line-height: 1.8;
-  }
-}
-
-.product-version {
-  flex-shrink: 0;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(53, 109, 255, 0.12);
-  color: var(--app-accent-strong);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.product-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.product-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.capability-card {
-  background: radial-gradient(circle at top right, rgba(14, 165, 233, 0.12), transparent 28%), var(--app-surface-bg);
-}
-
-.capability-group {
-  padding: 18px 18px 18px 20px;
-  border-radius: 22px;
-  background: var(--app-elevated-soft-bg);
-  border: 1px solid var(--app-surface-border);
-
-  h3 {
-    margin: 0 0 12px;
-    color: var(--app-text-title);
-    font-size: 18px;
-  }
-
-  ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: grid;
-    gap: 10px;
-  }
-
-  li {
-    position: relative;
-    padding-left: 16px;
-    color: var(--app-text-muted);
-    line-height: 1.7;
-
-    &::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 10px;
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--app-accent-strong);
-      box-shadow: 0 0 0 5px rgba(53, 109, 255, 0.12);
+    .entry-arrow {
+      transform: translateX(3px);
+      color: var(--app-accent-strong);
     }
   }
 }
 
-@media (max-width: 960px) {
-  .hero-panel,
-  .content-grid {
-    grid-template-columns: 1fr;
+.entry-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 1px solid var(--app-surface-border);
+  border-radius: 8px;
+  background: var(--app-surface-sunken);
+  color: var(--app-accent-strong);
+  font-size: 15px;
+}
+
+.entry-monogram {
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-sm);
+  font-weight: 600;
+}
+
+.entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    color: var(--app-text-title);
+    font-size: var(--app-font-size-sm);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
-@media (max-width: 640px) {
-  .hero-panel,
-  .section-card {
-    padding: 20px;
-    border-radius: 22px;
-  }
+.entry-path {
+  color: var(--app-text-faint);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  .product-top {
+.entry-arrow {
+  margin-left: auto;
+  color: var(--app-text-faint);
+  transition:
+    transform var(--app-duration-fast) var(--app-ease),
+    color var(--app-duration-fast) var(--app-ease);
+}
+
+@media (max-width: 900px) {
+  .home-hero {
     flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
   }
 }
 
-html.dark {
-  .hero-panel {
-    background: radial-gradient(circle at top left, rgba(53, 109, 255, 0.18), transparent 30%), var(--app-surface-bg);
+@media (max-width: 560px) {
+  .entry-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
