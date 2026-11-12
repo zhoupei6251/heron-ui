@@ -103,29 +103,18 @@
             <span>{{ parseTime(scope.row.createTime, '{y}-{m}-{d}') }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+        <el-table-column label="操作" align="center" width="120" class-name="small-padding fixed-width">
           <template #default="scope">
-            <el-tooltip content="详情" placement="top">
-              <el-button link type="primary" icon="View" @click="handleDetail(scope.row)"></el-button>
-            </el-tooltip>
-            <el-tooltip content="修改" placement="top">
-              <el-button
-                v-hasPermi="['system:notice:edit']"
-                link
-                type="primary"
-                icon="Edit"
-                @click="handleUpdate(scope.row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button
-                v-hasPermi="['system:notice:remove']"
-                link
-                type="primary"
-                icon="Delete"
-                @click="handleDelete(scope.row)"
-              ></el-button>
-            </el-tooltip>
+            <el-button link type="primary" @click="handleDetail(scope.row)">详情</el-button>
+            <el-dropdown trigger="click" @command="(command: string) => handleRowCommand(command, scope.row)">
+              <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-hasPermi="['system:notice:edit']" command="edit">编辑</el-dropdown-item>
+                  <el-dropdown-item v-hasPermi="['system:notice:remove']" command="remove">删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -387,6 +376,15 @@ const handleDelete = async (row?: Partial<NoticeVO>) => {
   await delNotice(noticeIds);
   await getList();
   modal.msgSuccess('删除成功');
+};
+
+/** 行内「更多」菜单：编辑与删除收起来，第一层只留详情 */
+const handleRowCommand = async (command: string, row: Partial<NoticeVO>) => {
+  if (command === 'edit') {
+    await handleUpdate(row);
+  } else if (command === 'remove') {
+    await handleDelete(row);
+  }
 };
 
 onMounted(() => {

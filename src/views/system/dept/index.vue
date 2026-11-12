@@ -82,35 +82,20 @@
             <span>{{ parseTime(scope.row.createTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column fixed="right" align="center" label="操作">
+        <el-table-column fixed="right" align="center" label="操作" width="120">
           <template #default="scope">
-            <el-tooltip content="修改" placement="top">
-              <el-button
-                v-hasPermi="['system:dept:edit']"
-                link
-                type="primary"
-                icon="Edit"
-                @click="handleUpdate(scope.row)"
-              />
-            </el-tooltip>
-            <el-tooltip content="新增" placement="top">
-              <el-button
-                v-hasPermi="['system:dept:add']"
-                link
-                type="primary"
-                icon="Plus"
-                @click="handleAdd(scope.row)"
-              />
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button
-                v-hasPermi="['system:dept:remove']"
-                link
-                type="primary"
-                icon="Delete"
-                @click="handleDelete(scope.row)"
-              />
-            </el-tooltip>
+            <el-button v-hasPermi="['system:dept:edit']" link type="primary" @click="handleUpdate(scope.row)">
+              编辑
+            </el-button>
+            <el-dropdown trigger="click" @command="(command: string) => handleRowCommand(command, scope.row)">
+              <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-hasPermi="['system:dept:add']" command="add">新增子部门</el-dropdown-item>
+                  <el-dropdown-item v-hasPermi="['system:dept:remove']" command="remove">删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -367,6 +352,15 @@ const handleDelete = async (row: Partial<DeptVO>) => {
   await delDept(row.deptId);
   await getList();
   modal.msgSuccess('删除成功');
+};
+
+/** 行内「更多」菜单：新增子部门与删除收起来，第一层只留编辑 */
+const handleRowCommand = async (command: string, row: Partial<DeptVO>) => {
+  if (command === 'add') {
+    await handleAdd(row);
+  } else if (command === 'remove') {
+    await handleDelete(row);
+  }
 };
 
 onMounted(() => {

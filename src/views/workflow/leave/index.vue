@@ -88,53 +88,31 @@
             <dict-tag :options="wf_business_status" :value="scope.row.status"></dict-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" align="center" width="162">
+        <el-table-column label="操作" align="center" width="130">
           <template #default="scope">
-            <el-row :gutter="10" class="mb8">
-              <el-col
-                :span="1.5"
-                v-if="scope.row.status === 'draft' || scope.row.status === 'cancel' || scope.row.status === 'back'"
-              >
-                <el-button
-                  v-hasPermi="['workflow:leave:edit']"
-                  size="small"
-                  type="primary"
-                  icon="Edit"
-                  @click="handleUpdate(scope.row)"
-                >
-                  修改
-                </el-button>
-              </el-col>
-              <el-col
-                :span="1.5"
-                v-if="scope.row.status === 'draft' || scope.row.status === 'cancel' || scope.row.status === 'back'"
-              >
-                <el-button
-                  v-hasPermi="['workflow:leave:remove']"
-                  size="small"
-                  type="primary"
-                  icon="Delete"
-                  @click="handleDelete(scope.row)"
-                >
-                  删除
-                </el-button>
-              </el-col>
-            </el-row>
-            <el-row :gutter="10" class="mb8">
-              <el-col :span="1.5">
-                <el-button type="primary" size="small" icon="View" @click="handleView(scope.row)">查看</el-button>
-              </el-col>
-              <el-col :span="1.5" v-if="scope.row.status === 'waiting'">
-                <el-button
-                  size="small"
-                  type="primary"
-                  icon="Notification"
-                  @click="handleCancelProcessApply(scope.row.id)"
-                >
-                  撤销
-                </el-button>
-              </el-col>
-            </el-row>
+            <el-button link type="primary" @click="handleView(scope.row)">查看</el-button>
+            <el-dropdown trigger="click" @command="(command: string) => handleRowCommand(command, scope.row)">
+              <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-if="['draft', 'cancel', 'back'].includes(scope.row.status)"
+                    v-hasPermi="['workflow:leave:edit']"
+                    command="edit"
+                  >
+                    修改
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="scope.row.status === 'waiting'" command="withdraw">撤销申请</el-dropdown-item>
+                  <el-dropdown-item
+                    v-if="['draft', 'cancel', 'back'].includes(scope.row.status)"
+                    v-hasPermi="['workflow:leave:remove']"
+                    command="remove"
+                  >
+                    删除
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -297,6 +275,17 @@ const handleCancelProcessApply = async (id: string) => {
   await cancelProcessApply(data).finally(() => setLoading(false));
   await getList();
   modal.msgSuccess('撤销成功');
+};
+
+/** 行内「更多」菜单：修改、撤销、删除收起来，第一层只留查看 */
+const handleRowCommand = async (command: string, row: Partial<LeaveVO>) => {
+  if (command === 'edit') {
+    handleUpdate(row);
+  } else if (command === 'withdraw') {
+    await handleCancelProcessApply(String(row.id));
+  } else if (command === 'remove') {
+    await handleDelete(row);
+  }
 };
 onMounted(() => {
   getList();

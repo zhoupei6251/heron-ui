@@ -105,53 +105,22 @@
         <el-table-column label="实体" align="center" prop="className" :show-overflow-tooltip="true" />
         <el-table-column label="创建时间" align="center" prop="createTime" width="160" />
         <el-table-column label="更新时间" align="center" prop="updateTime" width="160" />
-        <el-table-column label="操作" align="center" width="330" class-name="small-padding fixed-width">
+        <el-table-column label="操作" align="center" width="130" class-name="small-padding fixed-width">
           <template #default="scope">
-            <el-tooltip content="预览" placement="top">
-              <el-button
-                v-hasPermi="['tool:gen:preview']"
-                link
-                type="primary"
-                icon="View"
-                @click="handlePreview(scope.row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip content="编辑" placement="top">
-              <el-button
-                v-hasPermi="['tool:gen:edit']"
-                link
-                type="primary"
-                icon="Edit"
-                @click="handleEditTable(scope.row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button
-                v-hasPermi="['tool:gen:remove']"
-                link
-                type="primary"
-                icon="Delete"
-                @click="handleDelete(scope.row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip content="同步" placement="top">
-              <el-button
-                v-hasPermi="['tool:gen:edit']"
-                link
-                type="primary"
-                icon="Refresh"
-                @click="handleSynchDb(scope.row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip content="生成代码" placement="top">
-              <el-button
-                v-hasPermi="['tool:gen:code']"
-                link
-                type="primary"
-                icon="Download"
-                @click="handleGenTable(scope.row)"
-              ></el-button>
-            </el-tooltip>
+            <el-button v-hasPermi="['tool:gen:preview']" link type="primary" @click="handlePreview(scope.row)">
+              预览
+            </el-button>
+            <el-dropdown trigger="click" @command="(command: string) => handleRowCommand(command, scope.row)">
+              <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-hasPermi="['tool:gen:edit']" command="edit">编辑</el-dropdown-item>
+                  <el-dropdown-item v-hasPermi="['tool:gen:edit']" command="synch">同步表结构</el-dropdown-item>
+                  <el-dropdown-item v-hasPermi="['tool:gen:code']" command="code">生成代码</el-dropdown-item>
+                  <el-dropdown-item v-hasPermi="['tool:gen:remove']" command="remove">删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -325,6 +294,19 @@ const handleDelete = async (row?: Partial<TableVO>) => {
   await delTable(tableIds);
   await getList();
   modal.msgSuccess('删除成功');
+};
+
+/** 行内「更多」菜单：编辑、同步、生成代码、删除收起来，第一层只留预览 */
+const handleRowCommand = async (command: string, row: Partial<TableVO>) => {
+  if (command === 'edit') {
+    handleEditTable(row);
+  } else if (command === 'synch') {
+    await handleSynchDb(row);
+  } else if (command === 'code') {
+    await handleGenTable(row);
+  } else if (command === 'remove') {
+    await handleDelete(row);
+  }
 };
 
 onMounted(() => {

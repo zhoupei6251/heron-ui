@@ -1,0 +1,271 @@
+/* Heron 视觉基线：三层令牌（primitive → semantic → Element Plus 桥接）。
+ * 单一回滚入口：删除 index.scss 中对本文件的 @use 即可恢复若依默认蓝色主题。
+ * 只声明令牌与 Element Plus 变量，不写具体组件规则。 */
+
+html:root {
+  /* ---------- Primitive：墨色主色 #18181b ---------- */
+  --heron-ink-50: #f5f6f7;
+  --heron-ink-100: #eaeaec;
+  --heron-ink-200: #d6d8db;
+  --heron-ink-300: #b4b8bd;
+  --heron-ink-400: #888d94;
+  --heron-ink-500: #5c626a;
+  --heron-ink-600: #2b2f36;
+  --heron-ink-700: #1f2328;
+  --heron-ink-800: #18181b;
+  --heron-ink-900: #0e0f11;
+
+  /* ---------- Primitive：中性灰 ---------- */
+  --heron-slate-0: #ffffff;
+  --heron-slate-25: #fbfbfb;
+  --heron-slate-50: #f6f6f7;
+  --heron-slate-100: #f0f0f1;
+  --heron-slate-200: #e4e4e6;
+  --heron-slate-300: #d2d2d5;
+  --heron-slate-400: #a8a8ad;
+  --heron-slate-500: #7b7b81;
+  --heron-slate-600: #5b5b61;
+  --heron-slate-700: #45454a;
+  --heron-slate-800: #2f2f33;
+  --heron-slate-900: #1c1c1f;
+  --heron-slate-950: #121214;
+
+  /* ---------- Primitive：语义色 ---------- */
+  --heron-green-500: #17795e;
+  --heron-amber-500: #a86412;
+  --heron-red-500: #b4322f;
+  --heron-blue-500: #3b6c86;
+
+  /* ---------- Semantic：品牌别名（沿用旧 --app-brand-* 名称） ---------- */
+  --app-brand-50: var(--heron-ink-50);
+  --app-brand-100: var(--heron-ink-100);
+  --app-brand-500: var(--heron-ink-500);
+  --app-brand-600: var(--heron-ink-600);
+  --app-brand-700: var(--heron-ink-700);
+
+  /* ---------- Semantic：表面与描边 ---------- */
+  --app-shell-bg: var(--heron-slate-50);
+  --app-surface-bg: var(--heron-slate-0);
+  --app-surface-sunken: var(--heron-slate-25);
+  --app-surface-border: #e2e2e4;
+  --app-border-strong: var(--heron-slate-300);
+  --app-shell-spot-1: rgba(24, 24, 27, 0.05);
+  --app-shell-spot-2: rgba(24, 24, 27, 0.025);
+
+  /* ---------- Semantic：强调 ---------- */
+  --app-accent-soft: rgba(24, 24, 27, 0.06);
+  --app-accent-softer: rgba(24, 24, 27, 0.03);
+  --app-accent-border: rgba(24, 24, 27, 0.16);
+  --app-accent-strong: var(--heron-ink-800);
+
+  /* ---------- Semantic：文本 ---------- */
+  --app-text-title: #131316;
+  --app-text-body: #3a3a3e;
+  --app-text-muted: #616166;
+  --app-text-faint: #86868b;
+  --app-text-on-accent: #ffffff;
+
+  /* ---------- Semantic：语义色 ---------- */
+  --app-success: var(--heron-green-500);
+  --app-success-soft: rgba(23, 121, 94, 0.1);
+  --app-warning: var(--heron-amber-500);
+  --app-warning-soft: rgba(168, 100, 18, 0.1);
+  --app-danger: var(--heron-red-500);
+  --app-danger-soft: rgba(180, 50, 47, 0.1);
+  --app-info: var(--heron-blue-500);
+  --app-info-soft: rgba(59, 108, 134, 0.1);
+
+  /* ---------- Typography ---------- */
+  --app-font-sans:
+    'MiSans', 'HarmonyOS Sans SC', 'PingFang SC', 'Source Han Sans SC', 'Noto Sans SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  --app-font-mono:
+    'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+
+  --app-font-size-2xs: 11px;
+  --app-font-size-xs: 12px;
+  --app-font-size-sm: 13px;
+  --app-font-size-base: 14px;
+  --app-font-size-lg: 16px;
+  --app-font-size-xl: 20px;
+  --app-font-size-2xl: 24px;
+  --app-font-size-3xl: 32px;
+
+  --app-leading-tight: 1.25;
+  --app-leading-base: 1.55;
+  --app-tracking-eyebrow: 0.12em;
+
+  /* ---------- Spacing（4 的倍数） ---------- */
+  --app-space-1: 4px;
+  --app-space-2: 8px;
+  --app-space-3: 12px;
+  --app-space-4: 16px;
+  --app-space-5: 20px;
+  --app-space-6: 24px;
+  --app-space-8: 32px;
+
+  /* ---------- Radius ---------- */
+  --app-radius-base: 12px;
+
+  /* ---------- Shadow：只做层次，不做发光 ---------- */
+  --app-shadow-sm: 0 1px 2px rgba(11, 20, 24, 0.04);
+  --app-shadow-md: 0 6px 20px rgba(11, 20, 24, 0.06);
+  --app-shadow-lg: 0 18px 44px rgba(11, 20, 24, 0.1);
+  --app-shadow-lift: 0 8px 24px rgba(11, 20, 24, 0.08);
+
+  /* ---------- Motion ---------- */
+  --app-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --app-duration-fast: 120ms;
+  --app-duration-base: 180ms;
+
+  /* ---------- 数据密度：表头与选中态 ---------- */
+  --tableHeaderBg: #f6f6f7;
+  --tableHeaderTextColor: #5b5b61;
+  --menuHover: rgba(24, 24, 27, 0.06);
+  --subMenuHover: rgba(24, 24, 27, 0.06);
+  --subMenuTitleHover: rgba(24, 24, 27, 0.04);
+
+  /* ---------- 标签页激活态：低饱和底 + 品牌色文本 ---------- */
+  --tags-view-active-bg: var(--app-accent-soft);
+  --tags-view-active-border-color: var(--app-accent-border);
+
+  /* ---------- Element Plus 桥接 ---------- */
+  --el-color-primary: var(--heron-ink-800);
+  --el-color-primary-light-3: #5f5f61;
+  --el-color-primary-light-5: #8c8c8d;
+  --el-color-primary-light-7: #b8b8b9;
+  --el-color-primary-light-8: #cececf;
+  --el-color-primary-light-9: #e4e4e5;
+  --el-color-primary-dark-2: #131316;
+  --el-color-primary-rgb: 24, 24, 27;
+
+  --el-color-success: var(--heron-green-500);
+  --el-color-warning: var(--heron-amber-500);
+  --el-color-danger: var(--heron-red-500);
+  --el-color-error: var(--heron-red-500);
+  --el-color-info: var(--heron-blue-500);
+
+  --el-text-color-primary: var(--app-text-title);
+  --el-text-color-regular: var(--app-text-body);
+  --el-text-color-secondary: var(--app-text-muted);
+  --el-text-color-placeholder: var(--app-text-faint);
+  --el-border-color: var(--app-surface-border);
+  --el-border-color-light: var(--app-surface-border);
+  --el-border-color-lighter: var(--heron-slate-200);
+  --el-fill-color-light: var(--heron-slate-100);
+  --el-fill-color-lighter: var(--heron-slate-50);
+  --el-fill-color-blank: var(--app-surface-bg);
+  --el-bg-color: var(--app-surface-bg);
+  --el-bg-color-page: var(--app-shell-bg);
+  --el-border-radius-base: 8px;
+  --el-font-family: var(--app-font-sans);
+}
+
+html.dark {
+  --app-accent-soft: rgba(228, 228, 231, 0.14);
+  --app-accent-softer: rgba(228, 228, 231, 0.07);
+  --app-accent-border: rgba(228, 228, 231, 0.3);
+  --app-accent-strong: #e4e4e7;
+  --app-shell-spot-1: rgba(228, 228, 231, 0.12);
+  --app-shell-spot-2: rgba(228, 228, 231, 0.05);
+  --app-text-title: #ededee;
+  --app-text-body: #c7c7ca;
+  --app-text-muted: #8e8e93;
+  --app-text-faint: #6b6b70;
+
+  --app-success-soft: rgba(45, 160, 124, 0.16);
+  --app-warning-soft: rgba(212, 148, 58, 0.16);
+  --app-danger-soft: rgba(214, 96, 93, 0.16);
+  --app-info-soft: rgba(96, 152, 184, 0.16);
+
+  /* 暗色中性面：墨青，不用蓝紫底 */
+  --app-shell-bg: #0f0f10;
+  --app-surface-bg: #171718;
+  --app-surface-sunken: #131314;
+  --app-surface-border: rgba(255, 255, 255, 0.22);
+  --app-border-strong: rgba(255, 255, 255, 0.36);
+  --app-navbar-bg: #171718;
+  --app-navbar-border: rgba(255, 255, 255, 0.18);
+  --app-sidebar-border: rgba(255, 255, 255, 0.12);
+  --app-elevated-close-hover-bg: rgba(228, 228, 231, 0.18);
+
+  --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --app-shadow-md: 0 12px 28px rgba(0, 0, 0, 0.3);
+  --app-shadow-lg: 0 20px 44px rgba(0, 0, 0, 0.34);
+  --app-shadow-lift: 0 10px 26px rgba(0, 0, 0, 0.32);
+
+  /* 侧栏/顶栏深色变量收口 */
+  --menuBg: #171718;
+  --subMenuBg: #171718;
+  --menuColor: #dcdcdf;
+  --subMenuActiveText: #f5f5f6;
+  --fixedHeaderBg: #171718;
+  --menuHover: rgba(228, 228, 231, 0.18);
+  --subMenuHover: rgba(228, 228, 231, 0.16);
+  --subMenuTitleHover: rgba(255, 255, 255, 0.12);
+
+  --tags-view-active-bg: rgba(228, 228, 231, 0.16);
+  --tags-view-active-border-color: rgba(228, 228, 231, 0.32);
+
+  /* 亮色表头令牌在暗色下必须重新声明，否则会比页面还亮 */
+  --tableHeaderBg: #141415;
+  --tableHeaderTextColor: #a1a1a6;
+
+  /* Element Plus 暗色刻度：light-N 逐级变深 */
+  --el-color-primary: #e4e4e7;
+  --el-color-primary-light-2: #c9c9cb;
+  --el-color-primary-light-3: #b0b0b2;
+  --el-color-primary-light-5: #5f5f61;
+  --el-color-primary-light-7: #2f2f31;
+  --el-color-primary-light-8: #232325;
+  --el-color-primary-light-9: #1c1c1e;
+  --el-color-primary-dark-2: #f0f0f1;
+  --el-color-primary-dark-6: #18181b;
+  --el-color-primary-rgb: 228, 228, 231;
+  --el-color-success: #2da07c;
+  --el-color-warning: #d4943a;
+  --el-color-danger: #d6605d;
+  --el-color-error: #d6605d;
+  --el-color-info: #6098b8;
+
+  --el-text-color-primary: var(--app-text-title);
+  --el-text-color-regular: var(--app-text-body);
+  --el-text-color-secondary: var(--app-text-muted);
+  --el-text-color-placeholder: var(--app-text-faint);
+  --el-border-color: var(--app-surface-border);
+  --el-border-color-light: var(--app-surface-border);
+  --el-border-color-lighter: rgba(255, 255, 255, 0.16);
+  --el-fill-color-light: rgba(255, 255, 255, 0.1);
+  --el-fill-color-lighter: rgba(255, 255, 255, 0.06);
+  --el-fill-color-blank: var(--app-surface-bg);
+  --el-bg-color: var(--app-surface-bg);
+  --el-bg-color-page: var(--app-shell-bg);
+
+  --el-table-current-row-bg-color: #2a2a2f;
+  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.08);
+
+  .el-tree-node__content {
+    --el-color-primary-light-9: #1c1c1e;
+  }
+
+  .el-button--primary {
+    --el-button-bg-color: #e4e4e7;
+    --el-button-border-color: #e4e4e7;
+    --el-button-text-color: #18181b;
+    --el-button-hover-bg-color: #f0f0f1;
+    --el-button-hover-border-color: #f0f0f1;
+    --el-button-active-bg-color: #c9c9cb;
+    --el-button-active-border-color: #c9c9cb;
+  }
+
+  .el-switch {
+    --el-switch-on-color: #e4e4e7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:root {
+    --app-duration-fast: 0ms;
+    --app-duration-base: 0ms;
+  }
+}

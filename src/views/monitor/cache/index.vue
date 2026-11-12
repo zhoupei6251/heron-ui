@@ -166,13 +166,36 @@ const disposeCharts = () => {
   usedmemoryInstance = undefined;
 };
 
+const readVars = () => {
+  const cs = getComputedStyle(document.documentElement);
+  const get = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
+  return {
+    accent: get('--app-accent-strong', '#18181b'),
+    title: get('--app-text-title', '#14232a'),
+    muted: get('--app-text-muted', '#5b6b70'),
+    border: get('--app-surface-border', '#dfe7e8'),
+    font: get('--app-font-sans', 'sans-serif')
+  };
+};
+
+// 图表跟随品牌色板：青色阶为主，琥珀只留给需要关注的类别
+const buildChartTheme = () => {
+  const v = readVars();
+  return {
+    color: ['#18181b', '#3f3f45', '#5c5c63', '#7a7a81', '#9a9aa1', '#b9b9bf', '#d4d4d9', '#a86412'],
+    backgroundColor: 'transparent',
+    textStyle: { color: v.muted, fontFamily: v.font }
+  };
+};
+
 const getList = async () => {
   modal.loading('正在加载缓存监控数据，请稍候！');
   try {
     const res = await getCache();
     cache.value = res.data;
     disposeCharts();
-    commandstatsInstance = echarts.init(commandstats.value, 'macarons');
+    const vars = readVars();
+    commandstatsInstance = echarts.init(commandstats.value, buildChartTheme());
     commandstatsInstance.setOption({
       tooltip: {
         trigger: 'item',
@@ -185,13 +208,15 @@ const getList = async () => {
           roseType: 'radius',
           radius: [15, 95],
           center: ['50%', '38%'],
+          itemStyle: { borderColor: vars.border, borderWidth: 1 },
+          label: { color: vars.muted },
           data: res.data.commandStats,
-          animationEasing: 'cubicInOut',
-          animationDuration: 1000
+          animationEasing: 'cubicOut',
+          animationDuration: 600
         }
       ]
     });
-    usedmemoryInstance = echarts.init(usedmemory.value, 'macarons');
+    usedmemoryInstance = echarts.init(usedmemory.value, buildChartTheme());
     usedmemoryInstance.setOption({
       tooltip: {
         formatter: '{b} <br/>{a} : ' + cache.value.info.used_memory_human
@@ -202,7 +227,15 @@ const getList = async () => {
           type: 'gauge',
           min: 0,
           max: 1000,
+          progress: { show: true, width: 10, itemStyle: { color: vars.accent } },
+          axisLine: { lineStyle: { width: 10, color: [[1, vars.border]] } },
+          axisTick: { show: false },
+          splitLine: { lineStyle: { color: vars.border } },
+          axisLabel: { color: vars.muted, fontSize: 10 },
+          pointer: { itemStyle: { color: vars.accent } },
           detail: {
+            color: vars.title,
+            fontSize: 18,
             formatter: cache.value.info.used_memory_human
           },
           data: [

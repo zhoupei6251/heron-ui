@@ -2,7 +2,7 @@
   <div class="p-2 app-container dict-page">
     <el-row :gutter="16" class="dict-grid">
       <!-- 字典类型 -->
-      <el-col :xs="24" :lg="12">
+      <el-col :xs="24" :xl="12">
         <el-card shadow="hover" class="dict-card table-panel">
           <template #header>
             <div class="toolbar-shell dict-card__header">
@@ -161,7 +161,7 @@
       </el-col>
 
       <!-- 字典数据 -->
-      <el-col :xs="24" :lg="12">
+      <el-col :xs="24" :xl="12">
         <el-card shadow="hover" class="dict-card table-panel">
           <template #header>
             <div class="toolbar-shell dict-card__header">

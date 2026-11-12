@@ -216,46 +216,23 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="操作" fixed="right" width="180" class-name="small-padding fixed-width">
+            <el-table-column label="操作" fixed="right" width="120" class-name="small-padding fixed-width">
               <template #default="scope">
-                <el-tooltip v-if="scope.row.userId !== '1761100000000000001'" content="修改" placement="top">
-                  <el-button
-                    v-hasPermi="['system:user:edit']"
-                    link
-                    type="primary"
-                    icon="Edit"
-                    @click="handleUpdate(scope.row)"
-                  ></el-button>
-                </el-tooltip>
-                <el-tooltip v-if="scope.row.userId !== '1761100000000000001'" content="删除" placement="top">
-                  <el-button
-                    v-hasPermi="['system:user:remove']"
-                    link
-                    type="primary"
-                    icon="Delete"
-                    @click="handleDelete(scope.row)"
-                  ></el-button>
-                </el-tooltip>
-
-                <el-tooltip v-if="scope.row.userId !== '1761100000000000001'" content="重置密码" placement="top">
-                  <el-button
-                    v-hasPermi="['system:user:resetPwd']"
-                    link
-                    type="primary"
-                    icon="Key"
-                    @click="handleResetPwd(scope.row)"
-                  ></el-button>
-                </el-tooltip>
-
-                <el-tooltip v-if="scope.row.userId !== '1761100000000000001'" content="分配角色" placement="top">
-                  <el-button
-                    v-hasPermi="['system:user:edit']"
-                    link
-                    type="primary"
-                    icon="CircleCheck"
-                    @click="handleAuthRole(scope.row)"
-                  ></el-button>
-                </el-tooltip>
+                <template v-if="scope.row.userId !== '1761100000000000001'">
+                  <el-button v-hasPermi="['system:user:edit']" link type="primary" @click="handleUpdate(scope.row)">
+                    编辑
+                  </el-button>
+                  <el-dropdown trigger="click" @command="(command: string) => handleRowCommand(command, scope.row)">
+                    <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item v-hasPermi="['system:user:remove']" command="remove">删除</el-dropdown-item>
+                        <el-dropdown-item v-hasPermi="['system:user:resetPwd']" command="resetPwd">重置密码</el-dropdown-item>
+                        <el-dropdown-item v-hasPermi="['system:user:edit']" command="authRole">分配角色</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </template>
               </template>
             </el-table-column>
           </el-table>
@@ -708,6 +685,17 @@ const handleResetPwd = async (row: Partial<UserVO>) => {
   if (!err && res) {
     await api.resetUserPwd(row.userId, res.value);
     modal.msgSuccess('修改成功，新密码是：' + res.value);
+  }
+};
+
+/** 行内「更多」菜单：删除、重置密码、分配角色都收在这里，第一层只留编辑 */
+const handleRowCommand = async (command: string, row: Partial<UserVO>) => {
+  if (command === 'remove') {
+    await handleDelete(row);
+  } else if (command === 'resetPwd') {
+    await handleResetPwd(row);
+  } else if (command === 'authRole') {
+    handleAuthRole(row);
   }
 };
 

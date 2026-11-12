@@ -85,51 +85,31 @@
               </template>
             </el-table-column>
             <el-table-column align="center" prop="createTime" label="启动时间" width="160"></el-table-column>
-            <el-table-column label="操作" align="center" width="162">
+            <el-table-column label="操作" align="center" width="130">
               <template #default="scope">
-                <el-row :gutter="10" class="mb8">
-                  <el-col
-                    :span="1.5"
-                    v-if="
-                      scope.row.flowStatus === 'draft' ||
-                      scope.row.flowStatus === 'cancel' ||
-                      scope.row.flowStatus === 'back'
-                    "
-                  >
-                    <el-button type="primary" size="small" icon="Edit" @click="handleOpen(scope.row, 'update')">
-                      编辑
-                    </el-button>
-                  </el-col>
-                  <el-col
-                    :span="1.5"
-                    v-if="
-                      scope.row.flowStatus === 'draft' ||
-                      scope.row.flowStatus === 'cancel' ||
-                      scope.row.flowStatus === 'back'
-                    "
-                  >
-                    <el-button type="primary" size="small" icon="Delete" @click="handleDelete(scope.row)">
-                      删除
-                    </el-button>
-                  </el-col>
-                </el-row>
-                <el-row :gutter="10" class="mb8">
-                  <el-col :span="1.5">
-                    <el-button type="primary" size="small" icon="View" @click="handleOpen(scope.row, 'view')">
-                      查看
-                    </el-button>
-                  </el-col>
-                  <el-col :span="1.5" v-if="scope.row.flowStatus === 'waiting'">
-                    <el-button
-                      type="primary"
-                      size="small"
-                      icon="Notification"
-                      @click="handleCancelProcessApply(scope.row.businessId)"
-                    >
-                      撤销
-                    </el-button>
-                  </el-col>
-                </el-row>
+                <el-button link type="primary" @click="handleOpen(scope.row, 'view')">查看</el-button>
+                <el-dropdown trigger="click" @command="(command: string) => handleRowCommand(command, scope.row)">
+                  <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item
+                        v-if="['draft', 'cancel', 'back'].includes(scope.row.flowStatus)"
+                        command="edit"
+                      >
+                        编辑
+                      </el-dropdown-item>
+                      <el-dropdown-item v-if="scope.row.flowStatus === 'waiting'" command="withdraw">
+                        撤销申请
+                      </el-dropdown-item>
+                      <el-dropdown-item
+                        v-if="['draft', 'cancel', 'back'].includes(scope.row.flowStatus)"
+                        command="remove"
+                      >
+                        删除
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </template>
             </el-table-column>
           </el-table>
@@ -264,9 +244,19 @@ const handleCancelProcessApply = async (businessId: string) => {
   modal.msgSuccess('撤销成功');
 };
 
+/** 行内「更多」菜单：编辑、撤销、删除收起来，第一层只留查看 */
+const handleRowCommand = async (command: string, row) => {
+  if (command === 'edit') {
+    await handleOpen(row, 'update');
+  } else if (command === 'withdraw') {
+    await handleCancelProcessApply(row.businessId);
+  } else if (command === 'remove') {
+    await handleDelete(row);
+  }
+};
+
 //办理
-const handleOpen = async (row, type) => {
-  const routerJumpVo = reactive<RouterJumpVo>({
+const handleOpen = async (row, type) => {  const routerJumpVo = reactive<RouterJumpVo>({
     businessId: row.businessId,
     taskId: row.id,
     type: type,

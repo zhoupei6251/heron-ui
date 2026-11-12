@@ -45,7 +45,18 @@
 }
 
 .el-pagination .el-pager li.is-active {
-  box-shadow: var(--app-shadow-sm);
+  border-color: var(--app-accent-strong);
+  background: var(--app-accent-strong);
+  color: var(--app-text-on-accent);
+  font-weight: 600;
+}
+
+.el-pagination .el-pager li:not(.is-active):hover,
+.el-pagination .btn-prev:not(:disabled):hover,
+.el-pagination .btn-next:not(:disabled):hover {
+  border-color: var(--app-accent-border);
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
 }
 
 .el-breadcrumb {

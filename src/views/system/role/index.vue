@@ -115,44 +115,23 @@
           </template>
         </el-table-column>
 
-        <el-table-column fixed="right" label="操作" width="180">
+        <el-table-column fixed="right" label="操作" width="120">
           <template #default="scope">
-            <el-tooltip v-if="scope.row.roleId !== 1761300000000000001" content="修改" placement="top">
-              <el-button
-                v-hasPermi="['system:role:edit']"
-                link
-                type="primary"
-                icon="Edit"
-                @click="handleUpdate(scope.row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip v-if="scope.row.roleId !== 1761300000000000001" content="删除" placement="top">
-              <el-button
-                v-hasPermi="['system:role:remove']"
-                link
-                type="primary"
-                icon="Delete"
-                @click="handleDelete(scope.row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip v-if="scope.row.roleId !== 1761300000000000001" content="分配权限" placement="top">
-              <el-button
-                v-hasPermi="['system:role:edit']"
-                link
-                type="primary"
-                icon="CircleCheck"
-                @click="handleDataScope(scope.row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip v-if="scope.row.roleId !== 1761300000000000001" content="分配用户" placement="top">
-              <el-button
-                v-hasPermi="['system:role:edit']"
-                link
-                type="primary"
-                icon="User"
-                @click="handleAuthUser(scope.row)"
-              ></el-button>
-            </el-tooltip>
+            <template v-if="scope.row.roleId !== 1761300000000000001">
+              <el-button v-hasPermi="['system:role:edit']" link type="primary" @click="handleUpdate(scope.row)">
+                编辑
+              </el-button>
+              <el-dropdown trigger="click" @command="(command: string) => handleRowCommand(command, scope.row)">
+                <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item v-hasPermi="['system:role:remove']" command="remove">删除</el-dropdown-item>
+                    <el-dropdown-item v-hasPermi="['system:role:edit']" command="dataScope">分配权限</el-dropdown-item>
+                    <el-dropdown-item v-hasPermi="['system:role:edit']" command="authUser">分配用户</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -869,6 +848,17 @@ const handleStatusChange = async (row: Partial<RoleVO>) => {
 /** 分配用户 */
 const handleAuthUser = (row: Partial<RoleVO>) => {
   router.push('/system/role-auth/user/' + row.roleId);
+};
+
+/** 行内「更多」菜单：删除、分配权限、分配用户收起来，第一层只留编辑 */
+const handleRowCommand = async (command: string, row: Partial<RoleVO>) => {
+  if (command === 'remove') {
+    await handleDelete(row);
+  } else if (command === 'dataScope') {
+    await handleDataScope(row);
+  } else if (command === 'authUser') {
+    handleAuthUser(row);
+  }
 };
 
 /** 所有部门节点数据 */

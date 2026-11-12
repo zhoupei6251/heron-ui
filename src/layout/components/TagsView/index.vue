@@ -507,7 +507,6 @@ onBeforeUnmount(() => {
     border-radius: var(--app-radius-md);
     transition:
       box-shadow 0.2s ease,
-      transform 0.2s ease,
       border-color 0.2s ease,
       color 0.2s ease;
 
@@ -516,7 +515,6 @@ onBeforeUnmount(() => {
       color: $btn-hover-color;
       border-color: var(--el-color-primary-light-5);
       box-shadow: var(--app-shadow-sm);
-      transform: translateY(-1px);
     }
   }
 
@@ -559,7 +557,6 @@ onBeforeUnmount(() => {
         color: var(--el-color-primary);
         border-color: var(--el-color-primary-light-5);
         box-shadow: var(--app-shadow-sm);
-        transform: translateY(-1px);
       }
 
       &:first-of-type {
@@ -571,20 +568,10 @@ onBeforeUnmount(() => {
       }
 
       &.active {
-        background-color: var(--tags-view-active-bg);
-        color: var(--el-color-white);
-        border-color: var(--tags-view-active-border-color);
-
-        &::before {
-          content: '';
-          background: var(--el-color-white);
-          display: inline-block;
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          position: relative;
-          margin-right: 5px;
-        }
+        background-color: var(--app-accent-soft);
+        color: var(--app-accent-strong);
+        border-color: var(--app-accent-border);
+        font-weight: 600;
       }
     }
   }
@@ -622,7 +609,6 @@ onBeforeUnmount(() => {
     border-radius: var(--app-radius-md);
     transition:
       box-shadow 0.2s ease,
-      transform 0.2s ease,
       border-color 0.2s ease,
       color 0.2s ease;
 
@@ -631,7 +617,6 @@ onBeforeUnmount(() => {
       color: $btn-hover-color;
       border-color: var(--el-color-primary-light-5);
       box-shadow: var(--app-shadow-sm);
-      transform: translateY(-1px);
     }
   }
 

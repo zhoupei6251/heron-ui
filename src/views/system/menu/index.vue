@@ -95,35 +95,20 @@
             <dict-tag :options="sys_normal_disable" :value="scope.row.status" />
           </template>
         </el-table-column>
-        <el-table-column fixed="right" label="操作" width="180">
+        <el-table-column fixed="right" label="操作" width="120">
           <template #default="scope">
-            <el-tooltip content="修改" placement="top">
-              <el-button
-                v-hasPermi="['system:menu:edit']"
-                link
-                type="primary"
-                icon="Edit"
-                @click="handleUpdate(scope.row)"
-              />
-            </el-tooltip>
-            <el-tooltip content="新增" placement="top">
-              <el-button
-                v-hasPermi="['system:menu:add']"
-                link
-                type="primary"
-                icon="Plus"
-                @click="handleAdd(scope.row)"
-              />
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button
-                v-hasPermi="['system:menu:remove']"
-                link
-                type="primary"
-                icon="Delete"
-                @click="handleDelete(scope.row)"
-              />
-            </el-tooltip>
+            <el-button v-hasPermi="['system:menu:edit']" link type="primary" @click="handleUpdate(scope.row)">
+              编辑
+            </el-button>
+            <el-dropdown trigger="click" @command="(command: string) => handleRowCommand(command, scope.row)">
+              <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-hasPermi="['system:menu:add']" command="add">新增子项</el-dropdown-item>
+                  <el-dropdown-item v-hasPermi="['system:menu:remove']" command="remove">删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -583,6 +568,15 @@ const handleDelete = async (row: Partial<MenuVO>) => {
   await delMenu(row.menuId);
   await getList();
   modal.msgSuccess('删除成功');
+};
+
+/** 行内「更多」菜单：新增子项与删除收起来，第一层只留编辑 */
+const handleRowCommand = async (command: string, row: Partial<MenuVO>) => {
+  if (command === 'add') {
+    handleAdd(row);
+  } else if (command === 'remove') {
+    await handleDelete(row);
+  }
 };
 
 const deleteLoading = ref<boolean>(false);

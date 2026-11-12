@@ -239,114 +239,146 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   padding: 40px 24px 88px;
-  background:
-    radial-gradient(circle at 12% 12%, rgba(53, 109, 255, 0.22), transparent 24%),
-    radial-gradient(circle at 88% 18%, rgba(14, 165, 233, 0.18), transparent 24%),
-    linear-gradient(135deg, #071120 0%, #0f1b33 42%, #15345f 100%);
+  background-color: var(--app-shell-bg);
+  background-image:
+    linear-gradient(rgba(20, 35, 42, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 35, 42, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 .register-shell {
-  width: min(1180px, 100%);
+  width: min(1160px, 100%);
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 440px);
-  gap: 26px;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
   align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--app-surface-border);
+  border-radius: var(--app-radius-base);
+  background: var(--app-surface-bg);
+  box-shadow: var(--app-shadow-lg);
 }
 
 .register-brand,
 .register-form {
-  border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 30px 80px rgba(2, 8, 23, 0.32);
-  backdrop-filter: blur(18px);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .register-brand {
-  padding: 42px;
+  position: relative;
+  padding: 44px 42px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   color: #eef4ff;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
-    linear-gradient(135deg, rgba(53, 109, 255, 0.32), rgba(15, 23, 42, 0.24));
+  background: #0b1418;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+    background-size: 28px 28px;
+    pointer-events: none;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
 }
 
 .brand-pill {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .brand-title {
-  margin: 22px 0 14px;
-  font-size: clamp(34px, 4vw, 52px);
-  line-height: 1.08;
-  letter-spacing: -0.03em;
+  margin: 20px 0 12px;
+  font-size: clamp(32px, 3.6vw, 46px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
 }
 
 .brand-desc {
   margin: 0;
-  max-width: 580px;
-  color: rgba(226, 232, 240, 0.88);
-  font-size: 15px;
-  line-height: 1.8;
+  max-width: 520px;
+  color: rgba(226, 236, 240, 0.7);
+  font-size: 14px;
+  line-height: 1.9;
 }
 
 .brand-highlights {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin: 28px 0 34px;
+  gap: 8px;
+  margin: 24px 0 32px;
 }
 
 .highlight-chip {
-  padding: 9px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f8fbff;
-  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(238, 246, 248, 0.78);
+  font-size: 12px;
 }
 
 .brand-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 0;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .metric-card {
-  padding: 18px 16px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+
+  &:first-child {
+    padding-left: 0;
+    border-left: 0;
+  }
 
   strong {
-    font-size: 24px;
-    color: #fff;
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #f4fafb;
   }
 
   span {
-    color: rgba(226, 232, 240, 0.72);
-    font-size: 13px;
+    color: rgba(226, 236, 240, 0.6);
+    font-size: 12px;
   }
 }
 
 .register-form {
   width: 100%;
-  padding: 34px 30px 26px;
+  padding: 40px 36px 30px;
   z-index: 1;
   background: var(--app-surface-bg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .title-box {
@@ -354,48 +386,48 @@ onMounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 28px;
+  margin-bottom: 30px;
 
   .eyebrow {
     margin: 0 0 8px;
-    color: var(--app-accent-strong);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    color: var(--app-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
   }
 
   .title {
     margin: 0;
     color: var(--app-text-title);
-    font-weight: 700;
-    font-size: 30px;
-    letter-spacing: -0.03em;
+    font-weight: 600;
+    font-size: 26px;
+    letter-spacing: -0.01em;
   }
 
   .subtitle {
     margin: 8px 0 0;
     color: var(--app-text-muted);
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1.7;
   }
 
   :deep(.lang-select--style) {
     line-height: 0;
     color: var(--app-text-muted);
-    padding: 10px;
-    border-radius: 14px;
+    padding: 8px;
+    border-radius: 6px;
     background: var(--app-elevated-soft-bg);
     border: 1px solid var(--app-surface-border);
   }
 }
 
 .register-form .el-input {
-  height: 48px;
+  height: 46px;
 }
 
 .register-form .input-icon {
-  height: 46px;
+  height: 44px;
   width: 14px;
   margin-left: 0;
 }
@@ -422,9 +454,9 @@ onMounted(() => {
 }
 
 .register-code {
-  height: 48px;
+  height: 46px;
   box-sizing: border-box;
-  border-radius: 16px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--el-bg-color);
   border: 1px solid var(--app-surface-border);
@@ -445,22 +477,23 @@ onMounted(() => {
 
 .submit-button {
   width: 100%;
-  height: 50px;
-  border-radius: 16px;
-  box-shadow: 0 18px 34px rgba(53, 109, 255, 0.22);
+  height: 48px;
+  border-radius: 8px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 
 .register-form :deep(.el-input__wrapper) {
-  min-height: 48px;
+  min-height: 46px;
   background-color: var(--el-bg-color);
-  border-radius: 16px;
+  border-radius: 8px;
   box-shadow: 0 0 0 1px var(--app-surface-border) inset;
 }
 
 .register-form :deep(.el-input__wrapper.is-focus) {
   box-shadow:
-    0 0 0 1px rgba(53, 109, 255, 0.24) inset,
-    0 0 0 4px rgba(53, 109, 255, 0.12);
+    0 0 0 1px var(--app-accent-strong) inset,
+    0 0 0 3px var(--app-accent-soft);
 }
 
 .el-register-footer {
@@ -470,13 +503,13 @@ onMounted(() => {
   bottom: 0;
   width: 100%;
   text-align: center;
-  color: rgba(226, 232, 240, 0.68);
+  color: var(--app-text-muted);
   font-size: 12px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
 }
 
 .register-code-img {
-  height: 48px;
+  height: 46px;
   padding-left: 0;
 }
 

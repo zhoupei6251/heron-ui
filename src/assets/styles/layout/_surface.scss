@@ -19,6 +19,6 @@
 
   &:hover {
     box-shadow: var(--app-shadow-sm);
-    border-color: rgba(64, 158, 255, 0.2);
+    border-color: var(--app-accent-border);
   }
 }

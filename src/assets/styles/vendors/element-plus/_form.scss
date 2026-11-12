@@ -1,7 +1,13 @@
 /* 表单：inline 默认宽度；输入类圆角与 focus 环；按钮/tag/单选复选按钮组圆角。 */
 
 .el-form .el-form-item__label {
-  font-weight: 1000;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-sm);
+  font-weight: 500;
+}
+
+.el-form .el-form-item {
+  --el-form-label-font-size: var(--app-font-size-sm);
 }
 
 .el-form--inline .el-form-item__label {
@@ -28,11 +34,22 @@
 .el-input-number,
 .el-input-number__decrease,
 .el-input-number__increase {
-  border-radius: var(--app-radius-md);
+  border-radius: 8px;
   transition:
-    box-shadow 0.2s ease,
-    border-color 0.2s ease,
-    background-color 0.2s ease;
+    box-shadow var(--app-duration-fast) var(--app-ease),
+    border-color var(--app-duration-fast) var(--app-ease),
+    background-color var(--app-duration-fast) var(--app-ease);
+}
+
+.el-input__wrapper,
+.el-select__wrapper {
+  min-height: 32px;
+}
+
+.el-input__wrapper:hover,
+.el-select__wrapper:hover,
+.el-textarea__inner:hover {
+  box-shadow: 0 0 0 1px var(--app-border-strong) inset;
 }
 
 .el-input__wrapper.is-focus,
@@ -40,23 +57,149 @@
 .el-select__wrapper.is-focus,
 .el-date-editor.is-focus,
 .el-range-editor.is-focus {
-  box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
+  box-shadow:
+    0 0 0 1px var(--app-accent-strong) inset,
+    0 0 0 3px var(--app-accent-soft);
 }
 
+// --- 按钮收敛：只有 primary 是实心，其余一律 ghost（无底无框，hover 才出现） ---
 .el-button {
-  border-radius: var(--app-radius-md);
+  border-radius: 6px;
+  font-weight: 500;
   transition:
-    box-shadow 0.2s ease,
-    background-color 0.2s ease,
-    border-color 0.2s ease;
+    background-color var(--app-duration-fast) var(--app-ease),
+    border-color var(--app-duration-fast) var(--app-ease),
+    color var(--app-duration-fast) var(--app-ease);
+}
+
+.el-button:not(.el-button--primary):not(.is-text):not(.is-link),
+.el-button.is-plain {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: var(--app-accent-soft);
+  --el-button-hover-border-color: var(--app-accent-border);
+  --el-button-hover-text-color: var(--app-accent-strong);
+  --el-button-active-bg-color: var(--app-accent-soft);
+  --el-button-active-border-color: var(--app-accent-border);
+}
+
+// 逐类型覆盖 plain：暗色主题里 EP 用 html.dark .el-button--x.is-plain 设过变量，
+// 权重比通用 ghost 规则高，这里用同等权重但更晚加载压回去。
+html .el-button--primary.is-plain,
+html .el-button--success.is-plain,
+html .el-button--warning.is-plain,
+html .el-button--danger.is-plain,
+html .el-button--info.is-plain,
+html .el-button--default.is-plain {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: var(--app-accent-soft);
+  --el-button-hover-border-color: var(--app-accent-border);
+  --el-button-active-bg-color: var(--app-accent-soft);
+}
+
+.el-button:not([class*='el-button--']) {
+  --el-button-text-color: var(--app-text-body);
+}
+
+// 禁用态同样是 ghost：只压暗文字，不填底色
+.el-button:not(.el-button--primary).is-disabled,
+.el-button:not(.el-button--primary).is-disabled:hover {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: var(--app-text-faint) !important;
+}
+
+// 文字/链接按钮用品牌色，不跟随主按钮的白字（直接写 color，避免变量被主题规则抢走）
+html .el-button.is-link,
+html .el-button.is-text {
+  color: var(--app-accent-strong) !important;
+}
+
+html .el-button.is-link:hover,
+html .el-button.is-text:hover {
+  color: var(--app-accent-strong) !important;
 }
 
 .el-button:not(.is-text):not(.is-link):hover {
-  box-shadow: var(--app-shadow-sm);
+  box-shadow: none;
 }
 
+.el-button.is-text:hover,
+.el-button.is-link:hover {
+  background: var(--app-accent-soft);
+}
+
+// --- 状态标签：圆点 + 文字；只有异常态着色，正常态退成中性 ---
 .el-tag {
-  border-radius: var(--app-radius-md);
+  --el-tag-bg-color: transparent;
+  --el-tag-border-color: transparent;
+  --el-tag-text-color: var(--app-text-muted);
+  padding: 0;
+  height: 20px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--app-font-size-xs);
+  font-weight: 500;
+}
+
+.el-tag::before {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+  content: '';
+  opacity: 0.7;
+}
+
+// 逐类型清掉 EP 与暗色主题留下的底色与描边：圆点方案只靠文字和点着色
+.el-tag--primary,
+.el-tag--success,
+.el-tag--warning,
+.el-tag--danger,
+.el-tag--info,
+html.dark .el-tag--primary,
+html.dark .el-tag--success,
+html.dark .el-tag--warning,
+html.dark .el-tag--danger,
+html.dark .el-tag--info {
+  --el-tag-bg-color: transparent;
+  --el-tag-border-color: transparent;
+}
+
+// 正常与分类信息保持中性，靠明度区分轻重
+.el-tag--primary,
+.el-tag--success {
+  color: var(--app-text-body);
+}
+
+.el-tag--info {
+  color: var(--app-text-muted);
+}
+
+// 只有需要被看见的状态才用色
+.el-tag--warning {
+  color: var(--app-warning);
+}
+
+.el-tag--danger {
+  color: var(--app-danger);
+}
+
+// 多选下拉的已选项也是 .el-tag：圆点与零内边距只属于状态标签，控件里要还原胶囊
+.el-select__selection .el-tag {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+}
+
+.el-select__selection .el-tag::before {
+  content: none;
 }
 
 .el-radio-button__inner,

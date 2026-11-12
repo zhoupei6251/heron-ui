@@ -15,7 +15,7 @@
   margin-top: 8px;
   border: 1px solid var(--app-surface-border);
   background: var(--app-surface-bg);
-  border-radius: 22px;
+  border-radius: var(--app-radius-base);
   width: 100%;
   padding: 12px;
 }
@@ -36,30 +36,46 @@
 
 // --- el-card 本业务页外观（与 EP vendors 叠加） ---
 .el-card__header {
-  padding: 14px 16px 10px !important;
+  padding: 12px 16px !important;
   min-height: auto;
   background: transparent;
   border-bottom: 1px solid var(--app-surface-border);
+
+  h3,
+  .el-card__header > span:first-child {
+    font-size: var(--app-font-size-sm);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--app-text-title);
+  }
 }
 
 .el-card__body {
   padding: 16px !important;
 }
 
+// 表格卡：表格与卡片同宽，靠行内边距撑开，避免又多一层内框
+.table-panel .el-card__body {
+  padding: 4px 16px 12px !important;
+}
+
+.table-panel .el-card__header {
+  padding: 12px 16px !important;
+}
+
+// 生产台的面板是静态容器：静止时不浮动，避免整页面板跟着鼠标晃
 .el-card {
   border-radius: var(--app-radius-base);
-  box-shadow: var(--app-shadow-sm);
+  box-shadow: none;
   border-color: var(--app-surface-border);
   overflow: hidden;
-  transition:
-    box-shadow 0.2s ease,
-    border-color 0.2s ease;
+  transition: border-color var(--app-duration-base) var(--app-ease);
   background: var(--app-surface-bg);
 }
 
 .el-card:hover {
-  box-shadow: var(--app-shadow-md);
-  border-color: var(--app-accent-soft);
+  box-shadow: none;
+  border-color: var(--app-border-strong);
 }
 
 .card-box {

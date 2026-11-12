@@ -8,6 +8,7 @@
         <tags-view v-if="needTagsView" />
       </div>
       <app-main :class="{ 'with-fixed-header': fixedHeader, 'with-tags-view': needTagsView }" />
+      <heron-health-bar class="health-bar" />
       <settings ref="settingRef" />
     </div>
   </div>
@@ -18,6 +19,7 @@ import { NavTypeEnum } from '@/enums/NavTypeEnum';
 import { useAppStore } from '@/store/modules/app';
 import { useSettingsStore } from '@/store/modules/settings';
 import { initMessageBox, initPush } from '@/utils/push';
+import HeronHealthBar from '@/components/HeronHealthBar/index.vue';
 import { AppMain, Navbar, Settings, TagsView } from './components';
 import SideBar from './components/Sidebar/index.vue';
 
@@ -133,5 +135,32 @@ const setLayout = () => {
 .mobile .fixed-header {
   width: 100%;
   top: 0;
+}
+
+// --- 底部数据健康条：与固定表头共用侧栏宽度口径，避免折叠时错位 ---
+.health-bar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  width: calc(100% - #{$base-sidebar-width} - 12px);
+  transition: width 0.28s;
+}
+
+.hideSidebar .health-bar {
+  width: calc(100% - 70px);
+}
+
+.sidebarHide .health-bar {
+  width: 100%;
+}
+
+.mobile .health-bar {
+  width: 100%;
+}
+
+// 固定条会盖住页面底部，给主内容留出高度
+:deep(.app-main) {
+  padding-bottom: 44px;
 }
 </style>

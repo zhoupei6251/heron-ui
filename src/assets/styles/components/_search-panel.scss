@@ -1,17 +1,35 @@
 /* Search panel, table actions, and responsive panel shells. */
 
-// --- 表格工具列链接按钮（全局） ---
+// --- 表格工具列链接按钮（全局）：无底色，hover 才出现 ---
 .data-table .el-button.is-link {
   width: 28px !important;
   height: 28px !important;
   min-width: 28px !important;
   padding: 0 !important;
-  border-radius: var(--app-radius-md) !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: var(--app-text-muted) !important;
+}
+
+.data-table .el-button.is-link:hover {
   background: var(--app-accent-soft) !important;
+  color: var(--app-accent-strong) !important;
 }
 
 .data-table .el-button.is-link + .el-button.is-link {
-  margin-left: 4px !important;
+  margin-left: 2px !important;
+}
+
+// 文字型行内操作（详情/编辑）保持轻量，不做按钮框
+.data-table .el-button.is-link:not(.row-more) {
+  width: auto !important;
+  min-width: 0 !important;
+  padding: 0 6px !important;
+  font-size: var(--app-font-size-sm);
+}
+
+.row-more {
+  color: var(--app-text-faint) !important;
 }
 
 .search-wrap {

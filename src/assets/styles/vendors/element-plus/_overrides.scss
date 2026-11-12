@@ -11,6 +11,19 @@
 .el-select__popper.el-popper {
   border-radius: var(--app-radius-base);
   border-color: var(--app-surface-border);
+}
+
+// 面板是静态容器，只有浮层需要阴影
+.el-card {
+  box-shadow: none;
+}
+
+.el-dialog,
+.el-drawer,
+.el-popover.el-popper,
+.el-dropdown__popper .el-dropdown-menu,
+.el-picker__popper,
+.el-select__popper.el-popper {
   box-shadow: var(--app-shadow-md);
 }
 
@@ -26,14 +39,26 @@
   font-weight: 500;
 }
 
-// --- primary 品牌色（亮色；暗色见 tokens/_theme-dark） ---
+// --- primary 品牌色（亮色；暗色见 tokens/_brand） ---
 .el-button--primary {
-  --el-button-bg-color: var(--app-accent-strong);
-  --el-button-border-color: var(--app-accent-strong);
-  --el-button-hover-bg-color: #4a7cff;
-  --el-button-hover-border-color: #4a7cff;
-  --el-button-active-bg-color: #2e5ce0;
-  --el-button-active-border-color: #2e5ce0;
+  --el-button-bg-color: var(--heron-ink-800);
+  --el-button-border-color: var(--heron-ink-800);
+  --el-button-hover-bg-color: var(--heron-ink-600);
+  --el-button-hover-border-color: var(--heron-ink-600);
+  --el-button-active-bg-color: var(--heron-ink-900);
+  --el-button-active-border-color: var(--heron-ink-900);
+}
+
+// --- 键盘可见焦点：只在键盘导航时出现，不干扰鼠标操作 ---
+:focus-visible {
+  outline: 2px solid var(--app-accent-strong);
+  outline-offset: 2px;
+}
+
+.el-button:focus-visible,
+.el-input__wrapper:focus-within,
+.el-select__wrapper:focus-visible {
+  outline: none;
 }
 
 // --- 表格 CSS 变量接业务 token ---
@@ -51,9 +76,9 @@
 html.dark .el-table {
   --el-table-tr-bg-color: var(--app-surface-bg);
   --el-table-bg-color: var(--app-surface-bg);
-  --el-table-row-hover-bg-color: #2a3a55;
-  --el-table-current-row-bg-color: #1e3a6e;
-  --el-color-primary-light-9: #1e3a6e;
+  --el-table-row-hover-bg-color: #222226;
+  --el-table-current-row-bg-color: #2a2a2f;
+  --el-color-primary-light-9: #1c1c1e;
   background: var(--app-surface-bg);
 }
 

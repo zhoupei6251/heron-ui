@@ -33,7 +33,9 @@ const settingsStore = useSettingsStore();
 const permissionStore = usePermissionStore();
 const sidebarRouters = computed<RouteRecordRaw[]>(() => permissionStore.getSidebarRoutes());
 const showLogo = computed(() => settingsStore.sidebarLogo);
-const sideTheme = computed(() => settingsStore.sideTheme);
+// 侧栏跟随页面明暗（html.dark 由 useDark 控制）：暗色下强制深色侧栏，避免白块贴在深色页面上
+const isAppDark = useDark({ storageKey: 'useDarkKey', valueDark: 'dark', valueLight: 'light' });
+const sideTheme = computed(() => (isAppDark.value ? 'theme-dark' : settingsStore.sideTheme));
 const theme = computed(() => settingsStore.theme);
 const isCollapse = computed(() => !appStore.sidebar.opened);
 
@@ -46,8 +48,8 @@ const activeMenu = computed(() => {
   return path;
 });
 
-const bgColor = computed(() => (sideTheme.value === 'theme-dark' ? '#111827' : '#ffffff'));
-const textColor = computed(() => (sideTheme.value === 'theme-dark' ? '#e5edf8' : '#1f2937'));
+const bgColor = computed(() => (sideTheme.value === 'theme-dark' ? '#171718' : '#ffffff'));
+const textColor = computed(() => (sideTheme.value === 'theme-dark' ? '#d7d7da' : '#3a3a3e'));
 const menuStyle = computed(() => ({
   backgroundColor: bgColor.value,
   '--el-menu-bg-color': bgColor.value,

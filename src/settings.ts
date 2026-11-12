@@ -7,12 +7,12 @@ const setting: DefaultSettings = {
    */
   title: import.meta.env.VITE_APP_TITLE,
 
-  theme: '#409EFF',
+  theme: '#18181b',
 
   /**
    * 侧边栏主题 深色主题theme-dark，浅色主题theme-light
    */
-  sideTheme: 'theme-dark',
+  sideTheme: 'theme-light',
   /**
    * 是否系统布局配置
    */
@@ -79,9 +79,9 @@ const setting: DefaultSettings = {
   layout: '',
 
   /**
-   * 页面圆角大小
+   * 页面圆角大小（与品牌令牌 _brand.scss 的 --app-radius-base 保持一致）
    */
-  radiusBase: 14,
+  radiusBase: 12,
 
   /**
    * 表格全高内部滚动

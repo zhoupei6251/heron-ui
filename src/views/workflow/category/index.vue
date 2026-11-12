@@ -52,35 +52,25 @@
         <el-table-column label="分类名称" prop="categoryName" width="260" />
         <el-table-column label="显示顺序" align="center" prop="orderNum" width="200" />
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="操作" fixed="right" align="center" class-name="small-padding fixed-width">
+        <el-table-column label="操作" fixed="right" align="center" width="120" class-name="small-padding fixed-width">
           <template #default="scope">
-            <el-tooltip content="修改" placement="top">
-              <el-button
-                link
-                type="primary"
-                icon="Edit"
-                @click="handleUpdate(scope.row)"
-                v-hasPermi="['workflow:category:edit']"
-              />
-            </el-tooltip>
-            <el-tooltip content="新增" placement="top">
-              <el-button
-                link
-                type="primary"
-                icon="Plus"
-                @click="handleAdd(scope.row)"
-                v-hasPermi="['workflow:category:add']"
-              />
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button
-                link
-                type="primary"
-                icon="Delete"
-                @click="handleDelete(scope.row)"
-                v-hasPermi="['workflow:category:remove']"
-              />
-            </el-tooltip>
+            <el-button
+              v-hasPermi="['workflow:category:edit']"
+              link
+              type="primary"
+              @click="handleUpdate(scope.row)"
+            >
+              编辑
+            </el-button>
+            <el-dropdown trigger="click" @command="(command: string) => handleRowCommand(command, scope.row)">
+              <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-hasPermi="['workflow:category:add']" command="add">新增子分类</el-dropdown-item>
+                  <el-dropdown-item v-hasPermi="['workflow:category:remove']" command="remove">删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -271,6 +261,15 @@ const handleDelete = async (row: Partial<CategoryVO>) => {
   await delCategory(row.categoryId).finally(() => setLoading(false));
   await getList();
   modal.msgSuccess('删除成功');
+};
+
+/** 行内「更多」菜单：新增子分类与删除收起来，第一层只留编辑 */
+const handleRowCommand = (command: string, row: Partial<CategoryVO>) => {
+  if (command === 'add') {
+    handleAdd(row);
+  } else if (command === 'remove') {
+    void handleDelete(row);
+  }
 };
 
 onMounted(() => {
