@@ -1,8 +1,8 @@
 export interface EditorialRunQuery extends PageQuery {
   status?: string;
   selectedLine?: string;
-  beginDate?: string;
-  endDate?: string;
+  /** 日期范围按框架约定放 params，与同项目其它列表页一致。 */
+  params?: { beginDate?: string; endDate?: string };
 }
 
 /**

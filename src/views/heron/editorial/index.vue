@@ -188,8 +188,7 @@ const getList = async () => {
 
 const handleQuery = () => {
   queryParams.value.pageNum = 1;
-  queryParams.value.beginDate = dateRange.value?.[0];
-  queryParams.value.endDate = dateRange.value?.[1];
+  queryParams.value.params = { beginDate: dateRange.value?.[0], endDate: dateRange.value?.[1] };
   selected.value = undefined;
   getList();
 };
