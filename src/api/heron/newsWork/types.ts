@@ -3,7 +3,7 @@ import type { ProductionFile, ProductionStatus, ProductionTask } from '@/api/her
 export type NewsReviewStatus = 'pending' | 'approved' | 'rejected';
 
 /** 发布来源必须区分开：v1 只有人工回填，接开放平台后才有 api，历史数据口径靠它判断。 */
-export type NewsPublishSource = 'manual' | 'api';
+export type NewsPublishSource = 'manual' | 'api' | 'douyin-cli' | 'sandbox';
 
 export interface NewsWorkQuery extends PageQuery {
   title?: string;
@@ -36,6 +36,8 @@ export interface NewsVideoVersion {
   taskErrorCode?: string;
   taskErrorReason?: string;
   artifacts?: ProductionFile[];
+  /** 只在审片队列与发布记录里填：跨作品列表需要作品标题。 */
+  workTitle?: string;
 }
 
 export interface NewsWork {
@@ -72,11 +74,4 @@ export interface NewsReviewForm {
   contactSha256: string;
   videoSha256: string;
   reason?: string;
-}
-
-export interface NewsPublishForm {
-  workUrl: string;
-  account: string;
-  publishedAt: string;
-  videoSha256: string;
 }

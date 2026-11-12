@@ -5,7 +5,6 @@ import request from '@/utils/request';
 import type {
   NewsDraftForm,
   NewsGenerateForm,
-  NewsPublishForm,
   NewsReviewForm,
   NewsVideoVersion,
   NewsWork,
@@ -33,25 +32,45 @@ export const listNewsVersions = (workId: string, query: PageQuery): AxiosPromise
   return request({ url: '/heron/newsWork/' + workId + '/versions', method: 'get', params: query });
 };
 
+/** 审片队列：跨作品的待审版本，工作区不再逐个点开才发现要审什么。 */
+export const listReviewQueue = (query: PageQuery): AxiosPromise<PageResult<NewsVideoVersion>> => {
+  return request({ url: '/heron/newsWork/review/queue', method: 'get', params: query });
+};
+
+/** 发布记录：发过的版本，含沙箱与命令行提交。 */
+export const listPublishedVersions = (query: PageQuery): AxiosPromise<PageResult<NewsVideoVersion>> => {
+  return request({ url: '/heron/newsWork/published', method: 'get', params: query });
+};
+
 export const getNewsVersion = (workId: string, versionId: string): AxiosPromise<NewsVideoVersion> => {
   return request({ url: `/heron/newsWork/${workId}/versions/${versionId}`, method: 'get' });
 };
 
-export const reviewNewsVersion = (
+/**
+ * 一次确认：通过即由发布适配器写入回执，驳回只落审核结论。
+ * 手动模式的唯一人工动作，替代原先「先审片再回填」两步。
+ * 发布走浏览器自动化时要跑几十秒，超时给足，别让前端先断开而后端还在发。
+ */
+export const confirmNewsVersion = (
   workId: string,
   versionId: string,
   data: NewsReviewForm
 ): AxiosPromise<NewsVideoVersion> => {
-  return request({ url: `/heron/newsWork/${workId}/versions/${versionId}/review`, method: 'post', data });
+  return request({
+    url: `/heron/newsWork/${workId}/versions/${versionId}/confirm`,
+    method: 'post',
+    data,
+    timeout: 300000
+  });
 };
 
-/** 人工发布后回填回执；同一版本重复提交由后端幂等回放，不会多出一条发布记录。 */
-export const publishNewsVersion = (
+/** 命令行发布不回传作品链接，人从抖音后台复制一次补进来；其余发布事实不动。 */
+export const backfillNewsPublishUrl = (
   workId: string,
   versionId: string,
-  data: NewsPublishForm
+  workUrl: string
 ): AxiosPromise<NewsVideoVersion> => {
-  return request({ url: `/heron/newsWork/${workId}/versions/${versionId}/publish`, method: 'post', data });
+  return request({ url: `/heron/newsWork/${workId}/versions/${versionId}/publish-url`, method: 'post', data: { workUrl } });
 };
 
 /**
