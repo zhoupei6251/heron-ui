@@ -26,8 +26,30 @@
         <dl v-if="item.locked" class="template-meta">
           <div><dt>版本</dt><dd class="mono">{{ item.templateVersion || '-' }}</dd></div>
           <div><dt>音色</dt><dd class="mono">{{ item.voiceKey || '-' }}</dd></div>
+          <div><dt>画幅</dt><dd class="mono">{{ item.aspectRatio || '-' }}</dd></div>
+          <div>
+            <dt>推荐时长</dt>
+            <dd class="mono">
+              {{ item.minDuration ?? '-' }}–{{ item.maxDuration ?? '-' }} 秒
+            </dd>
+          </div>
           <div><dt>资产指纹</dt><dd class="mono">{{ short(item.assetManifestSha256) }}</dd></div>
         </dl>
+        <div v-if="item.locked" class="template-scenes">
+          <span class="scenes-label">支持场景</span>
+          <span class="scenes-tags">
+            <el-tag
+              v-for="scene in item.supportedSceneTypes || []"
+              :key="scene"
+              size="small"
+              effect="plain"
+              :type="scene === 'image' ? 'success' : 'info'"
+            >
+              {{ scene }}
+            </el-tag>
+            <span v-if="!(item.supportedSceneTypes || []).length" class="no-scenes">未声明</span>
+          </span>
+        </div>
         <el-alert v-else :closable="false" type="error" :title="item.lockProblem || 'LOCK.json 不可用'" />
       </article>
 
@@ -180,6 +202,32 @@ onMounted(getList);
 
 .mono {
   font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+}
+
+.template-scenes {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--app-surface-border);
+}
+
+.scenes-label {
+  flex-shrink: 0;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-2xs);
+}
+
+.scenes-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.no-scenes {
+  color: var(--app-text-faint);
   font-size: var(--app-font-size-2xs);
 }
 
