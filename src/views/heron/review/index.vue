@@ -65,15 +65,24 @@
 
           <template v-if="selected.taskStatus === 'succeeded'">
             <div class="preview-bar">
-              <el-button :loading="previewLoading" @click="loadPreview('contact_sheet')">九宫格</el-button>
-              <el-button :loading="previewLoading" @click="loadPreview('mp4')">成片</el-button>
               <el-button link type="primary" @click="openStudio">在工作室打开</el-button>
             </div>
-            <div v-if="previewUrl" class="preview-shell">
-              <img v-if="previewKind === 'contact_sheet'" :src="previewUrl" alt="成片九宫格核对图" class="contact-sheet" />
-              <video v-else :src="previewUrl" controls class="player" />
+            <div class="preview-grid">
+              <section v-for="kind in previewKinds" :key="kind" class="preview-cell">
+                <header class="preview-cell-head">{{ previewLabels[kind] }}</header>
+                <div v-loading="previews[kind].loading" class="preview-stage">
+                  <img
+                    v-if="previews[kind].url && kind === 'contact_sheet'"
+                    :src="previews[kind].url"
+                    alt="成片九宫格核对图"
+                    class="contact-sheet"
+                  />
+                  <video v-else-if="previews[kind].url" :src="previews[kind].url" controls class="player" />
+                  <p v-else-if="previews[kind].error" class="preview-fallback">{{ previews[kind].error }}</p>
+                  <p v-else class="preview-fallback">这一版没有可显示的{{ previewLabels[kind] }}</p>
+                </div>
+              </section>
             </div>
-            <el-empty v-else :image-size="60" description="先加载九宫格或成片再下结论" />
 
             <el-form class="review-form" label-width="88px">
               <el-form-item label="决议">
@@ -138,9 +147,13 @@ const page = ref<PageQuery>({ pageNum: 1, pageSize: 10 });
 const { loading, withLoading } = useLoading(true);
 const { showSearch } = useSearchToggle();
 
-const previewUrl = ref('');
-const previewKind = ref('');
-const previewLoading = ref(false);
+type PreviewKind = 'contact_sheet' | 'mp4';
+const previewKinds: PreviewKind[] = ['contact_sheet', 'mp4'];
+const previewLabels: Record<PreviewKind, string> = { contact_sheet: '九宫格', mp4: '成片' };
+const previews = reactive<Record<PreviewKind, { url: string; loading: boolean; error: string }>>({
+  contact_sheet: { url: '', loading: false, error: '' },
+  mp4: { url: '', loading: false, error: '' }
+});
 const submitting = ref(false);
 const fingerprintsConfirmed = ref(false);
 const form = ref<NewsReviewForm>({ decision: 'approved', contactSha256: '', videoSha256: '', reason: '' });
@@ -177,31 +190,46 @@ const selectVersion = (row?: NewsVideoVersion) => {
   fingerprintsConfirmed.value = false;
   form.value = { decision: 'approved', contactSha256: '', videoSha256: '', reason: '' };
   selected.value = row;
-};
-
-const releasePreview = () => {
-  if (previewUrl.value) {
-    URL.revokeObjectURL(previewUrl.value);
-    previewUrl.value = '';
+  if (row?.taskStatus === 'succeeded') {
+    previewKinds.forEach(loadPreview);
   }
-  previewKind.value = '';
 };
 
-/** 产物受登录态保护，不能用直链；blob 用完必须 revoke，否则翻几十条就会漏内存。 */
-const loadPreview = async (kind: string) => {
-  const file = artifact(kind);
-  if (!selected.value || !file) {
-    modal.msgError(kind === 'mp4' ? '这一版没有视频产物' : '这一版没有九宫格产物');
+/** 两个 blob 都要 revoke，否则翻几十条就会漏内存。ticket 让切版本后到达的旧 blob 直接丢弃。 */
+let previewTicket = 0;
+const releasePreview = () => {
+  previewTicket += 1;
+  previewKinds.forEach(kind => {
+    if (previews[kind].url) {
+      URL.revokeObjectURL(previews[kind].url);
+      previews[kind].url = '';
+    }
+    previews[kind].loading = false;
+    previews[kind].error = '';
+  });
+};
+
+/** 产物受登录态保护，不能用直链；blob 用完必须 revoke。 */
+const loadPreview = async (kind: PreviewKind) => {
+  const cell = previews[kind];
+  if (!selected.value || !artifact(kind)) {
+    cell.error = '';
     return;
   }
-  previewLoading.value = true;
+  const ticket = previewTicket;
+  const { workId, versionId } = selected.value;
+  const file = artifact(kind)!;
+  cell.loading = true;
+  cell.error = '';
   try {
-    releasePreview();
-    const blob = await fetchNewsPreview(selected.value.workId, selected.value.versionId, file.artifactId);
-    previewKind.value = kind;
-    previewUrl.value = URL.createObjectURL(blob);
+    const blob = await fetchNewsPreview(workId, versionId, file.artifactId);
+    if (ticket !== previewTicket) return;
+    if (cell.url) URL.revokeObjectURL(cell.url);
+    cell.url = URL.createObjectURL(blob);
+  } catch {
+    if (ticket === previewTicket) cell.error = `${previewLabels[kind]}加载失败，可再选一次该版本重试`;
   } finally {
-    previewLoading.value = false;
+    if (ticket === previewTicket) cell.loading = false;
   }
 };
 
@@ -305,13 +333,42 @@ onMounted(getList);
   margin: 14px 0 0;
 }
 
-.preview-shell {
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   margin-top: 10px;
+}
+
+.preview-cell-head {
+  margin-bottom: 6px;
+  color: var(--app-text-faint);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+  letter-spacing: var(--app-tracking-eyebrow);
+  text-transform: uppercase;
+}
+
+.preview-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  background: var(--app-surface-sunken);
+  border: 1px solid var(--app-surface-border);
+}
+
+.preview-fallback {
+  margin: 0;
+  padding: 12px;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.7;
+  text-align: center;
 }
 
 .contact-sheet {
   width: 100%;
-  border: 1px solid var(--app-surface-border);
 }
 
 .player {
@@ -332,6 +389,10 @@ onMounted(getList);
 
 @media (max-width: 1180px) {
   .review-split {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -1,256 +1,226 @@
 <template>
   <div class="p-2 app-container heron-work-studio-page">
-    <el-card shadow="hover" class="studio-panel">
-      <div class="studio-bar">
-        <el-button link icon="ArrowLeft" @click="goBack">返回视频作品</el-button>
-        <div class="studio-bar-meta">
-          <el-tag v-if="work?.currentVersion" :type="reviewTag[work.currentVersion.reviewStatus] || 'info'" size="small">
-            v{{ work.currentVersion.versionNo }} ·
-            {{ reviewText[work.currentVersion.reviewStatus] || work.currentVersion.reviewStatus }}
-          </el-tag>
-          <span class="revision-badge">修订 {{ work?.revision ?? '-' }}</span>
-        </div>
+    <div class="studio-bar">
+      <el-button link icon="ArrowLeft" @click="goBack">返回视频作品</el-button>
+      <div class="studio-bar-meta">
+        <el-tag v-if="work?.currentVersion" :type="reviewTag[work.currentVersion.reviewStatus] || 'info'" size="small">
+          v{{ work.currentVersion.versionNo }} ·
+          {{ reviewText[work.currentVersion.reviewStatus] || work.currentVersion.reviewStatus }}
+        </el-tag>
+        <span class="revision-badge">修订 {{ work?.revision ?? '-' }}</span>
       </div>
+    </div>
 
-      <el-skeleton v-if="loading" :rows="8" animated />
+    <el-skeleton v-if="loading" :rows="8" animated />
 
-      <el-empty v-else-if="!work" description="这个作品不存在，或你没有访问权限" />
+    <el-empty v-else-if="!work" description="这个作品不存在，或你没有访问权限" />
 
-      <template v-else>
-        <h1 class="studio-title">{{ work.title }}</h1>
+    <template v-else>
+      <h1 class="studio-title">{{ work.title }}</h1>
 
-        <el-alert
-          v-for="reason in capabilityReasons"
-          :key="reason"
-          class="mb-2"
+      <el-alert
+        v-for="reason in capabilityReasons"
+        :key="reason"
+        class="mb-2"
+        type="warning"
+        :closable="false"
+        :title="reason"
+      />
+
+      <el-alert
+        v-if="liveTask"
+        class="mb-2"
+        :type="liveTask.status === 'failed' ? 'error' : liveTask.status === 'succeeded' ? 'success' : 'info'"
+        :closable="false"
+        show-icon
+      >
+        <template #title>
+          {{ productionStatusText[liveTask.status] || liveTask.status }}
+          <template v-if="liveTask.stage">　阶段 {{ liveTask.stage }}</template>
+          <template v-if="liveTask.progress != null">　进度 {{ liveTask.progress }}%</template>
+        </template>
+        <div v-if="liveTask.errorReason" class="task-reason">{{ liveTask.errorReason }}</div>
+        <el-button
+          v-if="isProductionActive(liveTask.status)"
+          v-hasPermi="['heron:production:cancel']"
+          link
           type="warning"
-          :closable="false"
-          :title="reason"
-        />
-
-        <h4 class="section-title">草稿</h4>
-        <el-form ref="draftFormRef" :model="draftForm" :rules="draftRules" label-width="88px">
-          <el-form-item label="标题" prop="title">
-            <el-input v-model="draftForm.title" maxlength="200" show-word-limit />
-          </el-form-item>
-          <el-form-item label="口播稿" prop="draft">
-            <el-input v-model="draftForm.draft" type="textarea" :rows="7" maxlength="16000" show-word-limit />
-          </el-form-item>
-          <el-form-item label="模板" prop="templateKey">
-            <el-input v-model="draftForm.templateKey" class="w-[180px]" disabled />
-          </el-form-item>
-          <el-form-item label="音色" prop="voiceKey">
-            <el-input v-model="draftForm.voiceKey" class="w-[180px]" disabled />
-          </el-form-item>
-          <el-form-item>
-            <div class="toolbar-actions">
-              <el-button
-                v-hasPermi="['heron:newsWork:edit']"
-                :loading="savingDraft"
-                type="primary"
-                plain
-                @click="handleSaveDraft"
-              >
-                保存草稿
-              </el-button>
-              <el-button
-                v-hasPermi="['heron:newsWork:generate']"
-                :loading="generating"
-                :disabled="Boolean(work.activeTaskId)"
-                type="primary"
-                @click="handleGenerate"
-              >
-                发起生成
-              </el-button>
-              <span class="revision-tip">冲突会被后端拒绝，不会覆盖他人改动</span>
-            </div>
-          </el-form-item>
-        </el-form>
-
-        <el-alert
-          v-if="liveTask"
-          class="mb-2"
-          :type="liveTask.status === 'failed' ? 'error' : liveTask.status === 'succeeded' ? 'success' : 'info'"
-          :closable="false"
-          show-icon
+          @click="handleCancelTask"
         >
-          <template #title>
-            {{ productionStatusText[liveTask.status] || liveTask.status }}
-            <template v-if="liveTask.stage">　阶段 {{ liveTask.stage }}</template>
-            <template v-if="liveTask.progress != null">　进度 {{ liveTask.progress }}%</template>
-          </template>
-          <div v-if="liveTask.errorReason" class="task-reason">{{ liveTask.errorReason }}</div>
-          <el-button
-            v-if="isProductionActive(liveTask.status)"
-            v-hasPermi="['heron:production:cancel']"
-            link
-            type="warning"
-            @click="handleCancelTask"
-          >
-            取消这次生成
-          </el-button>
-        </el-alert>
+          取消这次生成
+        </el-button>
+      </el-alert>
 
-        <h4 class="section-title">版本</h4>
-        <el-table
-          v-loading="versionLoading"
-          border
-          :data="versions"
-          highlight-current-row
-          @current-change="selectVersion"
-        >
-          <el-table-column label="版本" width="70" align="center">
-            <template #default="{ row }">v{{ row.versionNo }}</template>
-          </el-table-column>
-          <el-table-column label="任务状态" width="110" align="center">
-            <template #default="{ row }">
-              <el-tag :type="productionStatusTag[row.taskStatus || ''] || 'info'" :title="row.taskErrorReason || ''">
-                {{ productionStatusText[row.taskStatus || ''] || row.taskStatus || '-' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="审片" width="100" align="center">
-            <template #default="{ row }">
-              <span v-if="row.taskStatus !== 'succeeded'">-</span>
-              <el-tag v-else :type="reviewTag[row.reviewStatus] || 'info'">
-                {{ reviewText[row.reviewStatus] || row.reviewStatus }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="时长" width="90" align="center">
-            <template #default="{ row }">
-              {{ row.durationMs ? Math.round(row.durationMs / 1000) + ' 秒' : '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="生成时间" min-width="160">
-            <template #default="{ row }">{{ timeText(row.createTime) }}</template>
-          </el-table-column>
-        </el-table>
-        <pagination
-          v-show="versionTotal > 0"
-          v-model:page="versionQuery.pageNum"
-          v-model:limit="versionQuery.pageSize"
-          :total="versionTotal"
-          @pagination="loadVersions"
-        />
+      <div class="studio-grid">
+        <!-- 左栏：内容结构 -->
+        <aside class="studio-col studio-col--left">
+          <section class="col-block">
+            <h3 class="block-title">01 选题资料</h3>
+            <dl class="kv">
+              <dt>候选</dt>
+              <dd class="mono">{{ work.candidateId }}</dd>
+              <dt>模板</dt>
+              <dd class="mono">{{ draftForm.templateKey }}</dd>
+              <dt>音色</dt>
+              <dd class="mono">{{ draftForm.voiceKey }}</dd>
+            </dl>
+          </section>
 
-        <template v-if="selected">
-          <h4 class="section-title">版本 v{{ selected.versionNo }} 详情</h4>
-          <el-table border :data="selected.artifacts || []">
-            <el-table-column label="产物" prop="kind" width="140" />
-            <el-table-column label="大小" width="100" align="center">
-              <template #default="{ row }">{{ (row.bytes / 1024).toFixed(1) }} KB</template>
-            </el-table-column>
-            <el-table-column label="指纹" min-width="200">
-              <template #default="{ row }">
-                <span class="sha-text">{{ row.sha256.slice(0, 24) }}…</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="可用" width="80" align="center">
-              <template #default="{ row }">
-                <el-tag :type="row.available ? 'success' : 'danger'">{{ row.available ? '是' : '否' }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="130" align="center">
-              <template #default="{ row }">
+          <section class="col-block">
+            <h3 class="block-title">02 标题与口播稿</h3>
+            <el-form ref="draftFormRef" :model="draftForm" :rules="draftRules" label-position="top" size="small">
+              <el-form-item label="标题" prop="title">
+                <el-input v-model="draftForm.title" maxlength="200" show-word-limit />
+              </el-form-item>
+              <el-form-item label="口播稿" prop="draft">
+                <el-input v-model="draftForm.draft" type="textarea" :rows="10" maxlength="16000" show-word-limit />
+              </el-form-item>
+              <div class="row-actions">
                 <el-button
-                  v-if="row.kind === 'contact_sheet' || row.kind === 'mp4'"
-                  v-hasPermi="['heron:newsWork:reviewPreview']"
-                  link
+                  v-hasPermi="['heron:newsWork:edit']"
+                  :loading="savingDraft"
                   type="primary"
-                  @click="handlePreview(row as ProductionFile)"
+                  plain
+                  size="small"
+                  @click="handleSaveDraft"
                 >
-                  预览
+                  保存草稿
                 </el-button>
-                <el-button
-                  v-if="row.kind === 'mp4'"
-                  v-hasPermi="['heron:newsWork:download']"
-                  link
-                  type="primary"
-                  :disabled="selected.reviewStatus !== 'approved'"
-                  @click="handleDownload(row as ProductionFile)"
-                >
+                <span class="revision-tip">冲突会被后端拒绝</span>
+              </div>
+            </el-form>
+          </section>
+
+          <section class="col-block">
+            <h3 class="block-title">03 版本历史</h3>
+            <ul v-loading="versionLoading" class="version-list">
+              <li
+                v-for="row in versions"
+                :key="row.versionId"
+                :class="['version-item', { 'is-active': selected?.versionId === row.versionId }]"
+                @click="selectVersion(row)"
+              >
+                <span class="version-no">v{{ row.versionNo }}</span>
+                <span class="version-meta">
+                  <el-tag :type="productionStatusTag[row.taskStatus || ''] || 'info'" size="small" effect="plain">
+                    {{ productionStatusText[row.taskStatus || ''] || row.taskStatus || '-' }}
+                  </el-tag>
+                  <el-tag v-if="row.taskStatus === 'succeeded'" :type="reviewTag[row.reviewStatus] || 'info'"
+                    size="small" effect="plain">
+                    {{ reviewText[row.reviewStatus] || row.reviewStatus }}
+                  </el-tag>
+                </span>
+                <span class="version-time">{{ timeText(row.createTime) }}</span>
+              </li>
+            </ul>
+            <pagination
+              v-show="versionTotal > 0"
+              v-model:page="versionQuery.pageNum"
+              v-model:limit="versionQuery.pageSize"
+              :total="versionTotal"
+              small
+              layout="prev, pager, next"
+              @pagination="loadVersions"
+            />
+          </section>
+        </aside>
+
+        <!-- 中栏：预览与编辑 -->
+        <main class="studio-col studio-col--center">
+          <section class="col-block">
+            <h3 class="block-title">
+              04 画面预览
+              <span v-if="selected" class="block-hint">v{{ selected.versionNo }}</span>
+            </h3>
+            <template v-if="selected">
+              <div class="preview-bar">
+                <el-button size="small" :loading="previewLoading" @click="loadPreview('contact_sheet')">
+                  九宫格
+                </el-button>
+                <el-button size="small" :loading="previewLoading" @click="loadPreview('mp4')">成片</el-button>
+                <el-button size="small" link type="primary" @click="handleDownload(artifact('mp4')!)"
+                  :disabled="selected.reviewStatus !== 'approved'">
                   正式下载
                 </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <div v-if="previewUrl" class="preview-shell">
-            <img
-              v-if="previewKind === 'contact_sheet'"
-              :src="previewUrl"
-              alt="成片九宫格核对图"
-              class="contact-sheet"
-            />
-            <video v-else :src="previewUrl" controls class="player" />
-          </div>
+              </div>
+              <div v-if="previewUrl" class="preview-shell">
+                <img v-if="previewKind === 'contact_sheet'" :src="previewUrl" alt="成片九宫格核对图" class="contact-sheet" />
+                <video v-else :src="previewUrl" controls class="player" />
+              </div>
+              <p v-else class="muted">点上面的按钮加载预览。产物受登录态保护，不能直接拖进播放器。</p>
+            </template>
+            <p v-else class="muted">先在左边选一个版本。</p>
+          </section>
 
-          <h4 class="section-title">生成门禁</h4>
-          <el-table border :data="checkRows">
-            <el-table-column label="门禁" prop="gate" width="160" />
-            <el-table-column label="结果" width="90" align="center">
-              <template #default="{ row }">
-                <el-tag :type="row.passed ? 'success' : 'danger'">{{ row.passed ? '通过' : '未通过' }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="说明与定位" prop="detail" min-width="300" show-overflow-tooltip />
-          </el-table>
-          <p v-if="selected.checks && !checkRows.length" class="revision-tip">门禁记录无法解析，请核对原始数据。</p>
+          <section class="col-block">
+            <h3 class="block-title">05 生成门禁</h3>
+            <el-table v-if="selected" :data="checkRows" size="small" border>
+              <el-table-column label="门禁" prop="gate" width="140" />
+              <el-table-column label="结果" width="86" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="row.passed ? 'success' : 'danger'" size="small">{{ row.passed ? '通过' : '未通过' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="说明与定位" prop="detail" min-width="240" show-overflow-tooltip />
+            </el-table>
+            <p v-else class="muted">未选版本。</p>
+            <p v-if="selected?.checks && !checkRows.length" class="muted">门禁记录无法解析。</p>
+          </section>
 
-          <template v-if="selected.taskStatus === 'succeeded' && selected.reviewStatus === 'pending'">
-            <h4 class="section-title">人工审片</h4>
-            <el-form ref="reviewFormRef" :model="reviewForm" :rules="reviewRules" label-width="88px">
-              <el-form-item label="决议" prop="decision">
-                <el-radio-group v-model="reviewForm.decision">
-                  <el-radio value="approved">通过</el-radio>
-                  <el-radio value="rejected">驳回</el-radio>
-                </el-radio-group>
-              </el-form-item>
-              <el-form-item v-if="reviewForm.decision === 'rejected'" label="驳回理由" prop="reason">
-                <el-input v-model="reviewForm.reason" type="textarea" :rows="3" maxlength="1000" show-word-limit />
-              </el-form-item>
-              <el-form-item label="指纹">
-                <el-checkbox v-model="fingerprintsConfirmed">
-                  我已核对九宫格与视频指纹（{{ shortSha(contactSha) }} / {{ shortSha(videoSha) }}）
-                </el-checkbox>
-              </el-form-item>
-              <el-form-item>
-                <el-button
-                  v-hasPermi="['heron:newsWork:review']"
-                  :loading="reviewing"
-                  :disabled="!fingerprintsConfirmed || !contactSha || !videoSha"
-                  type="primary"
-                  @click="handleReview"
-                >
-                  {{ reviewForm.decision === 'approved' ? '确认并发布' : '提交驳回' }}
-                </el-button>
-                <span v-if="reviewForm.decision === 'approved'" class="review-hint">
-                  通过后由系统立即发布并写入回执，不需要再去抖音手动上传
-                </span>
-              </el-form-item>
-            </el-form>
-          </template>
-          <el-alert
-            v-else-if="selected.reviewStatus === 'pending'"
-            class="mt-2"
-            type="error"
-            :closable="false"
-            show-icon
-            :title="`这一版没有可审的成片（任务状态 ${productionStatusText[selected.taskStatus || ''] || selected.taskStatus || '-'}${selected.taskErrorCode ? '，' + selected.taskErrorCode : ''}）`"
-            :description="selected.taskErrorReason || '失败原因未记录，可到生产任务页查该任务的阶段与用量。'"
-          />
-          <template v-else>
-            <el-descriptions class="mt-2" :column="1" border>
+          <section v-if="selected?.taskStatus === 'succeeded'" class="col-block">
+            <h3 class="block-title">06 人工审片</h3>
+            <template v-if="selected.reviewStatus === 'pending'">
+              <el-form ref="reviewFormRef" :model="reviewForm" :rules="reviewRules" label-width="88px" size="small">
+                <el-form-item label="决议" prop="decision">
+                  <el-radio-group v-model="reviewForm.decision">
+                    <el-radio value="approved">通过</el-radio>
+                    <el-radio value="rejected">驳回</el-radio>
+                  </el-radio-group>
+                </el-form-item>
+                <el-form-item v-if="reviewForm.decision === 'rejected'" label="驳回理由" prop="reason">
+                  <el-input v-model="reviewForm.reason" type="textarea" :rows="3" maxlength="1000" show-word-limit />
+                </el-form-item>
+                <el-form-item label="指纹">
+                  <el-checkbox v-model="fingerprintsConfirmed">
+                    我已核对九宫格与视频指纹（{{ shortSha(contactSha) }} / {{ shortSha(videoSha) }}）
+                  </el-checkbox>
+                </el-form-item>
+                <el-form-item>
+                  <el-button
+                    v-hasPermi="['heron:newsWork:review']"
+                    :loading="reviewing"
+                    :disabled="!fingerprintsConfirmed || !contactSha || !videoSha"
+                    type="primary"
+                    @click="handleReview"
+                  >
+                    {{ reviewForm.decision === 'approved' ? '确认并发布' : '提交驳回' }}
+                  </el-button>
+                  <span v-if="reviewForm.decision === 'approved'" class="review-hint">
+                    通过后由系统立即发布并写入回执
+                  </span>
+                </el-form-item>
+              </el-form>
+            </template>
+            <el-descriptions v-else :column="1" border size="small">
               <el-descriptions-item label="审片结论">
                 {{ reviewText[selected.reviewStatus] || selected.reviewStatus }}
               </el-descriptions-item>
               <el-descriptions-item label="审片时间">{{ timeText(selected.reviewAt) }}</el-descriptions-item>
               <el-descriptions-item label="理由">{{ selected.reviewReason || '-' }}</el-descriptions-item>
             </el-descriptions>
-          </template>
+          </section>
+          <el-alert
+            v-else-if="selected?.reviewStatus === 'pending'"
+            class="mb-2"
+            type="error"
+            :closable="false"
+            show-icon
+            :title="`这一版没有可审的成片（${productionStatusText[selected.taskStatus || ''] || selected.taskStatus || '-'}${selected.taskErrorCode ? '，' + selected.taskErrorCode : ''}）`"
+            :description="selected.taskErrorReason || '失败原因未记录，可到生产任务页查该任务的阶段与用量。'"
+          />
 
-          <template v-if="selected.publishSource">
-            <h4 class="section-title">发布回执</h4>
+          <section v-if="selected?.publishSource" class="col-block">
+            <h3 class="block-title">07 发布回执</h3>
             <el-alert
               v-if="selected.publishSource === 'sandbox'"
               class="mb-2"
@@ -258,7 +228,6 @@
               :closable="false"
               show-icon
               title="沙箱发布：仅验证链路，未上抖音"
-              description="开放平台凭据到位前，回执由沙箱适配器生成；作品链接为 sandbox:// 前缀，平台侧看不到这条内容。"
             />
             <el-alert
               v-else-if="selected.publishSource === 'douyin-cli' && !selected.publishUrl"
@@ -267,11 +236,10 @@
               :closable="false"
               show-icon
               title="已提交，待补链接"
-              description="命令行已在抖音后台提交发布，但命令不回传作品链接；从抖音后台复制一次链接补进来即可。"
             />
-            <el-descriptions :column="1" border>
+            <el-descriptions :column="1" border size="small">
               <el-descriptions-item label="来源">
-                <el-tag :type="selected.publishSource === 'sandbox' ? 'warning' : 'success'">
+                <el-tag :type="selected.publishSource === 'sandbox' ? 'warning' : 'success'" size="small">
                   {{ publishSourceText[selected.publishSource] || selected.publishSource }}
                 </el-tag>
               </el-descriptions-item>
@@ -280,8 +248,9 @@
                   {{ selected.publishUrl }}
                 </a>
                 <div v-else-if="selected.publishSource === 'douyin-cli'" class="publish-url-fix">
-                  <el-input v-model="publishUrlInput" placeholder="粘贴抖音作品链接" clearable />
-                  <el-button :loading="publishUrlSaving" :disabled="!publishUrlInput.trim()" @click="savePublishUrl">
+                  <el-input v-model="publishUrlInput" placeholder="粘贴抖音作品链接" clearable size="small" />
+                  <el-button :loading="publishUrlSaving" :disabled="!publishUrlInput.trim()" size="small"
+                    @click="savePublishUrl">
                     补链接
                   </el-button>
                 </div>
@@ -289,36 +258,114 @@
               </el-descriptions-item>
               <el-descriptions-item label="发布账号">{{ selected.publishAccount || '-' }}</el-descriptions-item>
               <el-descriptions-item label="发布时间">{{ timeText(selected.publishAt) }}</el-descriptions-item>
-              <el-descriptions-item label="成片指纹">
-                <span class="sha-text">{{ selected.publishVideoSha || '-' }}</span>
-              </el-descriptions-item>
             </el-descriptions>
+          </section>
 
-            <h4 class="section-title">发布表现</h4>
+          <section v-if="selected?.publishSource" class="col-block">
+            <h3 class="block-title">08 发布表现</h3>
             <div class="metric-grid">
-              <el-input-number v-model="metricForm.plays" :min="0" :controls="false" placeholder="播放量" />
-              <el-input-number v-model="metricForm.completion" :min="0" :max="100" :controls="false" placeholder="完播率 %" />
-              <el-input-number v-model="metricForm.likes" :min="0" :controls="false" placeholder="点赞" />
-              <el-button :loading="metricSaving" @click="saveMetric">记录表现</el-button>
+              <el-input-number v-model="metricForm.plays" :min="0" :controls="false" placeholder="播放量" size="small" />
+              <el-input-number v-model="metricForm.completion" :min="0" :max="100" :controls="false"
+                placeholder="完播率 %" size="small" />
+              <el-input-number v-model="metricForm.likes" :min="0" :controls="false" placeholder="点赞" size="small" />
+              <el-button :loading="metricSaving" size="small" @click="saveMetric">记录表现</el-button>
             </div>
-            <p v-if="latestMetric" class="form-tip">
+            <p v-if="latestMetric" class="muted">
               最近一次：播放 {{ latestMetric.plays ?? '-' }} · 完播 {{ metricPercent(latestMetric.completionRate) }} ·
               {{ timeText(latestMetric.fetchedAt) }}
             </p>
-            <p v-else class="form-tip">还没有表现数据；填一次后，选题器会参考它判断同类选题。</p>
-          </template>
-          <el-alert
-            v-else-if="selected.reviewStatus === 'approved'"
-            class="mt-2"
-            type="warning"
-            :closable="false"
-            show-icon
-            title="这一版已通过审片但没有发布回执"
-            description="旧数据或发布失败留下的状态；可在生产任务页确认后重新确认发布。"
-          />
-        </template>
-      </template>
-    </el-card>
+            <p v-else class="muted">还没有表现数据。</p>
+          </section>
+        </main>
+
+        <!-- 右栏：创作设置 -->
+        <aside class="studio-col studio-col--right">
+          <section class="col-block">
+            <h3 class="block-title">创作设置</h3>
+            <el-form label-position="top" size="small">
+              <el-form-item label="模板">
+                <el-select v-model="draftForm.templateKey" class="w-full" placeholder="选择版式">
+                  <el-option
+                    v-for="item in templates"
+                    :key="item.key"
+                    :label="`${item.name}（${item.key}）`"
+                    :value="item.key"
+                    :disabled="!item.locked"
+                  >
+                    <span>{{ item.name }}</span>
+                    <span class="option-hint">{{ item.key }}</span>
+                  </el-option>
+                </el-select>
+                <p class="form-tip">
+                  换模板只影响下一次生成；已产出的版本保留当时冻结的模板与资产指纹。
+                </p>
+              </el-form-item>
+
+              <el-form-item label="音色">
+                <el-input :model-value="draftForm.voiceKey" disabled />
+                <p class="form-tip">音色由模板的资产锁固定，换音色要改模板并重新生成 LOCK。</p>
+              </el-form-item>
+
+              <el-form-item v-if="selectedTemplate" label="当前模板能力">
+                <div class="capability">
+                  <div class="cap-row">
+                    <span class="cap-label">画幅</span>
+                    <span class="cap-value mono">{{ selectedTemplate.aspectRatio || '-' }}</span>
+                  </div>
+                  <div class="cap-row">
+                    <span class="cap-label">推荐时长</span>
+                    <span class="cap-value mono">
+                      {{ selectedTemplate.minDuration ?? '-' }}–{{ selectedTemplate.maxDuration ?? '-' }} 秒
+                    </span>
+                  </div>
+                  <div class="cap-row">
+                    <span class="cap-label">支持场景</span>
+                    <span class="cap-value">
+                      <el-tag
+                        v-for="scene in selectedTemplate.supportedSceneTypes || []"
+                        :key="scene"
+                        size="small"
+                        effect="plain"
+                        :type="scene === 'image' ? 'success' : 'info'"
+                      >
+                        {{ scene }}
+                      </el-tag>
+                      <span v-if="!(selectedTemplate.supportedSceneTypes || []).length" class="muted">未声明</span>
+                    </span>
+                  </div>
+                </div>
+              </el-form-item>
+            </el-form>
+          </section>
+
+          <section class="col-block">
+            <h3 class="block-title">质量检查</h3>
+            <ul class="check-list">
+              <li v-for="row in checkRows" :key="row.gate" :class="['check-row', row.passed ? 'is-pass' : 'is-fail']">
+                <span class="check-dot" />
+                <span class="check-gate">{{ row.gate }}</span>
+              </li>
+              <li v-if="!checkRows.length" class="muted">未选版本或没有门禁记录。</li>
+            </ul>
+          </section>
+
+          <section class="col-block">
+            <h3 class="block-title">生成</h3>
+            <el-button
+              v-hasPermi="['heron:newsWork:generate']"
+              :loading="generating"
+              :disabled="Boolean(work.activeTaskId)"
+              type="primary"
+              class="w-full"
+              @click="handleGenerate"
+            >
+              发起生成
+            </el-button>
+            <p class="form-tip">{{ work.activeTaskId ? '已有在途任务，等它结束再发起。' : '会排队执行真实渲染。' }}</p>
+          </section>
+        </aside>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -326,6 +373,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { NewsDraftForm, NewsReviewForm, NewsVideoVersion, NewsWork } from '@/api/heron/newsWork/types';
 import type { ProductionCapabilities, ProductionFile, ProductionTask } from '@/api/heron/production/types';
+import type { VideoTemplate } from '@/api/heron/template/types';
 import {
   fetchNewsPreview,
   generateNewsVideo,
@@ -338,6 +386,7 @@ import {
 import { getProduction, getProductionCapabilities, cancelProduction } from '@/api/heron/production';
 import { listNewsMetrics, saveNewsMetric } from '@/api/heron/metrics';
 import type { NewsMetric } from '@/api/heron/metrics';
+import { listVideoTemplate } from '@/api/heron/template';
 import modal from '@/plugins/modal';
 import { download } from '@/utils/request';
 import { utcText } from '../../heron-time';
@@ -349,7 +398,6 @@ const reviewTag: Record<string, 'info' | 'success' | 'danger'> = {
   approved: 'success',
   rejected: 'danger'
 };
-// 两种来源必须分开显示：接了开放平台后历史数据才分得清
 const publishSourceText: Record<string, string> = {
   manual: '人工已发布',
   api: 'API 已发布',
@@ -365,6 +413,7 @@ const draftFormRef = ref<ElFormInstance>();
 const reviewFormRef = ref<ElFormInstance>();
 
 const work = ref<NewsWork>();
+const templates = ref<VideoTemplate[]>([]);
 // 模板与音色由模板目录的 LOCK.json 锁定；服务端在认领时已经选定，这两个常量只在服务端没给值时兜底
 const LOCKED_TEMPLATE_KEY = 'news-9x16';
 const LOCKED_VOICE_KEY = 'zh-CN-XiaoxiaoNeural';
@@ -380,15 +429,19 @@ const generating = ref(false);
 const versionLoading = ref(false);
 const versions = ref<NewsVideoVersion[]>([]);
 const versionTotal = ref(0);
-const versionQuery = ref<PageQuery>({ pageNum: 1, pageSize: 10 });
+const versionQuery = ref<PageQuery>({ pageNum: 1, pageSize: 20 });
 const selected = ref<NewsVideoVersion>();
 const reviewing = ref(false);
 const fingerprintsConfirmed = ref(false);
 const reviewForm = ref<NewsReviewForm>({ decision: 'approved', contactSha256: '', videoSha256: '', reason: '' });
-// 发布表现：平台后台的数字由人录进来，选题器读最近几条做参考
 const metricForm = ref<{ plays?: number; completion?: number; likes?: number }>({});
 const latestMetric = ref<NewsMetric>();
 const metricSaving = ref(false);
+
+/** 右栏展示当前选中模板的能力：用户在选模板时就该看到它装不装得下这条内容。 */
+const selectedTemplate = computed(() =>
+  templates.value.find(item => item.key === draftForm.value.templateKey)
+);
 
 const metricPercent = (rate?: number) => (rate === null || rate === undefined ? '-' : `${Math.round(rate * 100)}%`);
 
@@ -420,7 +473,7 @@ const saveMetric = async () => {
     metricSaving.value = false;
   }
 };
-// 命令行发布不回传链接：人从抖音后台复制一次补进来，不伪造也不阻塞发布
+
 const publishUrlInput = ref('');
 const publishUrlSaving = ref(false);
 
@@ -441,6 +494,7 @@ const savePublishUrl = async () => {
 
 const previewUrl = ref('');
 const previewKind = ref('');
+const previewLoading = ref(false);
 const capabilities = ref<ProductionCapabilities>();
 
 // shortcut: 生成受理键在打开作品时生成一次，重试复用同一个键；需要跨会话恢复时改由后端下发。
@@ -540,7 +594,6 @@ const watchTask = async (taskId: string) => {
   }
 };
 
-/** 版本列表 */
 const loadVersions = async () => {
   if (!work.value) return;
   versionLoading.value = true;
@@ -569,7 +622,6 @@ const releasePreview = () => {
   previewKind.value = '';
 };
 
-/** 保存草稿：expectedRevision 由后端校验，成功后取回新的修订号 */
 const handleSaveDraft = () => {
   draftFormRef.value?.validate(async (valid: boolean) => {
     if (!valid || !work.value) return;
@@ -586,6 +638,11 @@ const handleSaveDraft = () => {
 
 const handleGenerate = async () => {
   if (!work.value) return;
+  // 换了模板就得先把草稿存下去，否则这次生成用的还是服务端记录的旧模板
+  if (draftForm.value.templateKey !== work.value.templateKey) {
+    await handleSaveDraft();
+    if (draftForm.value.templateKey !== work.value?.templateKey) return;
+  }
   try {
     await modal.confirm('发起生成会排队执行真实渲染，能力未放行时后端会直接拒绝。确定现在发起？');
   } catch {
@@ -607,7 +664,6 @@ const handleGenerate = async () => {
   }
 };
 
-/** 就地取消：执行中的任务先进入取消中，进程确认停止后才算已取消；轮询会自己把结局带回来。 */
 const handleCancelTask = async () => {
   if (!liveTask.value) return;
   try {
@@ -619,7 +675,6 @@ const handleCancelTask = async () => {
   modal.msgSuccess('已提交取消');
 };
 
-/** 预览取回 blob：产物受登录态保护，不能用直链 */
 const handlePreview = async (file: ProductionFile) => {
   if (!work.value || !selected.value) return;
   releasePreview();
@@ -628,17 +683,30 @@ const handlePreview = async (file: ProductionFile) => {
   previewUrl.value = URL.createObjectURL(blob);
 };
 
-/** 正式下载必须带视频指纹，后端据此确认下载的就是刚审过的那一版 */
-const handleDownload = (file: ProductionFile) => {
+const loadPreview = async (kind: string) => {
+  const file = artifact(kind);
+  if (!file) {
+    modal.msgError(kind === 'mp4' ? '这一版没有视频产物' : '这一版没有九宫格产物');
+    return;
+  }
+  previewLoading.value = true;
+  try {
+    await handlePreview(file);
+  } finally {
+    previewLoading.value = false;
+  }
+};
+
+const handleDownload = (file?: ProductionFile) => {
   if (!work.value || !selected.value) return;
-  const video = artifact('mp4');
+  const video = file ?? artifact('mp4');
   if (!video) {
     modal.msgError('该版本没有视频产物');
     return;
   }
   void download(
     `/heron/newsWork/${work.value.workId}/versions/${selected.value.versionId}/download`,
-    { artifactId: file.artifactId, videoSha256: video.sha256 },
+    { artifactId: video.artifactId, videoSha256: video.sha256 },
     `${video.sha256.slice(0, 8)}.mp4`
   );
 };
@@ -654,7 +722,6 @@ const handleReview = () => {
         videoSha256: videoSha.value
       });
       modal.msgSuccess(reviewForm.value.decision === 'approved' ? '已确认，发布回执已写入' : '驳回已记录');
-      // 复核后的版本对象直接回到选中态，避免再取一次才知道结论
       selectVersion(res.data);
       await Promise.all([loadVersions(), reloadWork(work.value.workId)]);
     } finally {
@@ -672,7 +739,15 @@ const loadCapabilities = async () => {
   }
 };
 
-/** 路由参数是这一页的唯一入口：详情页和列表页都带 workId 进来 */
+const loadTemplates = async () => {
+  try {
+    const res = await listVideoTemplate();
+    templates.value = res.data || [];
+  } catch {
+    // 模板目录读不到时右栏退化成只读文本框，不影响已有流程
+  }
+};
+
 const load = async () => {
   stopWatch();
   releasePreview();
@@ -708,16 +783,17 @@ onBeforeUnmount(() => {
 });
 onMounted(() => {
   void loadCapabilities();
+  void loadTemplates();
   void load();
 });
 watch(() => route.query.workId, load);
 </script>
 
-<style scoped>
-.studio-panel {
-  border: 1px solid var(--app-surface-border);
-  max-width: 1200px;
+<style lang="scss" scoped>
+.heron-work-studio-page {
+  max-width: 1560px;
 }
+
 .studio-bar {
   display: flex;
   align-items: center;
@@ -725,41 +801,278 @@ watch(() => route.query.workId, load);
   padding-bottom: 12px;
   border-bottom: 1px solid var(--app-surface-border);
 }
+
 .studio-bar-meta {
   display: flex;
   align-items: center;
   gap: 10px;
 }
+
 .revision-badge {
   color: var(--app-text-faint);
   font-family: var(--app-font-mono);
   font-size: var(--app-font-size-2xs);
   font-variant-numeric: tabular-nums;
 }
+
 .studio-title {
-  margin: 18px 0 4px;
+  margin: 16px 0 8px;
   color: var(--app-text-title);
   font-size: var(--app-font-size-xl);
   font-weight: 600;
   line-height: 1.4;
 }
-.section-title {
-  margin: 22px 0 8px;
+
+/* 三栏：左结构 / 中预览 / 右设置。中间给最多空间，因为它放视频。 */
+.studio-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(420px, 1.7fr) minmax(240px, 0.9fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.studio-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.col-block {
+  padding: 14px 16px;
+  border: 1px solid var(--app-surface-border);
+  border-radius: var(--app-radius-base);
+  background: var(--app-surface-bg);
+}
+
+.block-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
   color: var(--app-text-title);
   font-size: var(--app-font-size-sm);
   font-weight: 600;
   letter-spacing: 0.02em;
 }
-.revision-tip {
-  margin-left: 8px;
-  color: var(--app-text-muted);
+
+.block-hint {
+  color: var(--app-text-faint);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+  font-weight: 400;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 6px 10px;
+  margin: 0;
+  font-size: var(--app-font-size-xs);
+
+  dt {
+    color: var(--app-text-faint);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--app-text-body);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.mono {
+  font-family: var(--app-font-mono);
   font-size: var(--app-font-size-2xs);
 }
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.revision-tip {
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-2xs);
+}
+
+.version-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.version-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color var(--app-duration-fast) var(--app-ease);
+
+  &:hover {
+    background: var(--app-accent-softer);
+  }
+
+  &.is-active {
+    border-color: var(--app-accent-border);
+    background: var(--app-accent-soft);
+  }
+}
+
+.version-no {
+  color: var(--app-text-title);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-xs);
+  font-weight: 600;
+}
+
+.version-meta {
+  display: flex;
+  gap: 4px;
+}
+
+.version-time {
+  color: var(--app-text-faint);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+}
+
+.preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.preview-shell {
+  margin-top: 4px;
+}
+
+.contact-sheet {
+  width: 100%;
+  border: 1px solid var(--app-surface-border);
+  border-radius: 8px;
+}
+
+.player {
+  width: 100%;
+  max-height: 480px;
+  background: #000;
+  border-radius: 8px;
+}
+
+.muted {
+  margin: 0;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.7;
+}
+
+.form-tip {
+  margin: 4px 0 0;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-2xs);
+  line-height: 1.6;
+}
+
+.option-hint {
+  float: right;
+  color: var(--app-text-faint);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+}
+
+.capability {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.cap-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: var(--app-font-size-xs);
+}
+
+.cap-label {
+  color: var(--app-text-faint);
+  flex-shrink: 0;
+}
+
+.cap-value {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  color: var(--app-text-body);
+}
+
+.check-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--app-font-size-xs);
+}
+
+.check-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.is-pass .check-dot {
+  background: var(--app-success);
+}
+
+.is-fail .check-dot {
+  background: var(--app-danger);
+}
+
+.is-pass .check-gate {
+  color: var(--app-text-muted);
+}
+
+.is-fail .check-gate {
+  color: var(--app-danger);
+  font-weight: 600;
+}
+
+.task-reason {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .review-hint {
   margin-left: 12px;
   color: var(--app-text-muted);
   font-size: var(--app-font-size-xs);
 }
+
 .metric-grid {
   display: flex;
   align-items: center;
@@ -767,33 +1080,20 @@ watch(() => route.query.workId, load);
   flex-wrap: wrap;
 
   .el-input-number {
-    width: 130px;
+    width: 120px;
   }
 }
+
 .publish-url-fix {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 560px;
+  max-width: 520px;
 }
-.sha-text {
-  font-family: var(--app-font-mono);
-}
-.task-reason {
-  margin-top: 4px;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-.preview-shell {
-  margin-top: 12px;
-}
-.contact-sheet {
-  width: 100%;
-  border: 1px solid var(--app-surface-border);
-}
-.player {
-  width: 100%;
-  max-height: 420px;
-  background: #000;
+
+@media (max-width: 1180px) {
+  .studio-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
