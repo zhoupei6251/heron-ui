@@ -14,6 +14,8 @@ export interface NewsSource {
   intervalSeconds: number;
   /** '0' 启用、'1' 停用，与若依基座的布尔字符列一致。 */
   enabled: string;
+  /** '0' 允许自动产出、'1' 不允许；新源默认不允许。 */
+  auto: string;
   lastAttemptAt?: string;
   lastSuccessAt?: string;
   nextFetchAt?: string;
@@ -29,4 +31,5 @@ export interface NewsSourceForm {
   url: string;
   intervalSeconds: number;
   enabled: string;
+  auto: string;
 }

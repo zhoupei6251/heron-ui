@@ -77,36 +77,26 @@
             <span v-else>正常</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="170" align="center" class-name="small-padding fixed-width">
+        <el-table-column label="操作" width="130" align="center" class-name="small-padding fixed-width">
           <template #default="{ row }">
-            <el-tooltip content="立即采集" placement="top">
-              <el-button
-                v-hasPermi="['heron:newsSource:fetch']"
-                link
-                type="primary"
-                icon="Refresh"
-                :disabled="row.enabled !== '0'"
-                @click="handleFetch(row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip content="修改" placement="top">
-              <el-button
-                v-hasPermi="['heron:newsSource:edit']"
-                link
-                type="primary"
-                icon="Edit"
-                @click="handleUpdate(row)"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button
-                v-hasPermi="['heron:newsSource:remove']"
-                link
-                type="primary"
-                icon="Delete"
-                @click="handleDelete(row)"
-              ></el-button>
-            </el-tooltip>
+            <el-button
+              v-hasPermi="['heron:newsSource:fetch']"
+              link
+              type="primary"
+              :disabled="row.enabled !== '0'"
+              @click="handleFetch(row)"
+            >
+              采集
+            </el-button>
+            <el-dropdown trigger="click" @command="(command: string) => handleRowCommand(command, row)">
+              <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-hasPermi="['heron:newsSource:edit']" command="edit">编辑来源</el-dropdown-item>
+                  <el-dropdown-item v-hasPermi="['heron:newsSource:remove']" command="remove">删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -143,6 +133,13 @@
             <el-radio value="0">启用</el-radio>
             <el-radio value="1">停用</el-radio>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item label="自动产出">
+          <el-radio-group v-model="form.auto">
+            <el-radio value="0">允许</el-radio>
+            <el-radio value="1">不允许</el-radio>
+          </el-radio-group>
+          <p class="form-tip">只对本源生效；新源默认不允许，人工看过几条再打开</p>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -189,7 +186,8 @@ const initFormData: NewsSourceForm = {
   sourceType: 'rss',
   url: '',
   intervalSeconds: 600,
-  enabled: '0'
+  enabled: '0',
+  auto: '1'
 };
 const data = reactive<PageData<NewsSourceForm, NewsSourceQuery>>({
   form: { ...initFormData },
@@ -304,6 +302,15 @@ const handleDelete = async (row: Partial<NewsSource>) => {
   await delNewsSource(row.sourceId!);
   modal.msgSuccess('删除成功');
   await getList();
+};
+
+/** 行内「更多」菜单：编辑与删除收起来，第一层只留采集 */
+const handleRowCommand = async (command: string, row: Partial<NewsSource>) => {
+  if (command === 'edit') {
+    await handleUpdate(row);
+  } else if (command === 'remove') {
+    await handleDelete(row);
+  }
 };
 
 /** 手动采集：同来源并发由后端租约挡下，这里只如实展示返回的错误 */

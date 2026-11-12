@@ -78,28 +78,39 @@
         <el-table-column label="阶段" width="120">
           <template #default="{ row }">{{ row.stage || '-' }}</template>
         </el-table-column>
-        <el-table-column label="进度" width="90">
-          <template #default="{ row }">{{ row.progress ?? 0 }}%</template>
+        <el-table-column label="进度" width="150">
+          <template #default="{ row }">
+            <div class="progress-cell">
+              <span class="progress-track">
+                <span class="progress-fill" :style="{ width: `${Math.min(100, Math.max(0, row.progress ?? 0))}%` }" />
+              </span>
+              <span class="progress-num">{{ row.progress ?? 0 }}%</span>
+            </div>
+          </template>
         </el-table-column>
-        <el-table-column label="尝试" prop="attemptNo" width="70" />
+        <el-table-column label="尝试" prop="attemptNo" width="70" align="right" />
         <el-table-column label="开始时间" width="165">
           <template #default="{ row }">{{ utcText(row.startedAt) }}</template>
         </el-table-column>
         <el-table-column label="结束时间" width="165">
           <template #default="{ row }">{{ utcText(row.finishedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row as ProductionTask)">详情</el-button>
-            <el-button
+            <el-dropdown
               v-if="isProductionActive(row.status)"
               v-hasPermi="['heron:production:cancel']"
-              link
-              type="danger"
-              @click="handleCancel(row as ProductionTask)"
+              trigger="click"
+              @command="() => handleCancel(row as ProductionTask)"
             >
-              取消
-            </el-button>
+              <el-button link class="row-more" icon="MoreFilled" aria-label="更多操作" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="cancel">取消任务</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
         <template #empty>
@@ -428,33 +439,6 @@ onBeforeUnmount(deactivate);
 </script>
 
 <style scoped lang="scss">
-.panel-kicker {
-  display: block;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--el-text-color-secondary);
-}
-
-.panel-heading h3,
-.table-heading h3 {
-  margin: 2px 0 0;
-  font-size: 16px;
-}
-
-.table-heading p {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.toolbar-shell {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
 .search-panel-toggle {
   cursor: pointer;
 }
@@ -478,5 +462,36 @@ onBeforeUnmount(deactivate);
 .detail-heading {
   margin: 20px 0 8px;
   font-size: 14px;
+}
+
+.progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-track {
+  flex: 1;
+  height: 4px;
+  min-width: 36px;
+  border-radius: 999px;
+  background: var(--app-accent-softer);
+  overflow: hidden;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--app-accent-strong);
+  transition: width var(--app-duration-base) var(--app-ease);
+}
+
+.progress-num {
+  min-width: 32px;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 </style>

@@ -12,7 +12,7 @@ export const productionStatusText: Record<ProductionStatus, string> = {
   cancelled: '已取消'
 };
 
-export const productionStatusTag: Record<ProductionStatus, string> = {
+export const productionStatusTag: Record<ProductionStatus, 'primary' | 'success' | 'info' | 'warning' | 'danger'> = {
   queued: 'info',
   running: 'primary',
   cancelling: 'warning',

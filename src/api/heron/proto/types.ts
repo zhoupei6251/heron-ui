@@ -18,6 +18,7 @@ export interface ProtoProject {
   revision: number;
   nextVersion: number;
   currentVersionId?: string;
+  currentVersion?: ProtoVersion;
   activeTaskId?: string;
   activeTask?: ProductionTask;
   archived: string;

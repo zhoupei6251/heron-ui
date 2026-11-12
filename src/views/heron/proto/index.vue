@@ -53,6 +53,14 @@
         </el-table-column>
         <el-table-column label="草稿修订" prop="revision" width="90" align="center" />
         <el-table-column label="下一版本" prop="nextVersion" width="90" align="center" />
+        <el-table-column label="当前版本" width="130" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.currentVersion" :type="versionTag(row.currentVersion)">
+              v{{ row.currentVersion.versionNo }} · {{ versionStateText(row.currentVersion) }}
+            </el-tag>
+            <span v-else>未生成</span>
+          </template>
+        </el-table-column>
         <el-table-column label="在途任务" width="100" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.activeTaskId" type="warning">执行中</el-tag>
@@ -118,7 +126,13 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="workDialog.visible" size="960px" :title="project?.name || '原型项目'" append-to-body>
+    <el-drawer
+      v-model="workDialog.visible"
+      size="960px"
+      :title="project?.name || '原型项目'"
+      append-to-body
+      @closed="stopWatch"
+    >
       <el-skeleton v-if="!project" :rows="6" animated />
       <template v-else>
         <el-alert
@@ -164,7 +178,7 @@
               type="success"
               plain
               :loading="generating"
-              :disabled="Boolean(project.activeTaskId)"
+              :disabled="Boolean(project.activeTaskId) || capabilities?.prototype?.available === false"
               @click="handleGenerate"
             >
               发起生成
@@ -534,6 +548,15 @@ const reviewTag: Record<string, 'info' | 'success' | 'danger'> = {
   approved: 'success',
   rejected: 'danger'
 };
+/** 当前版本先看任务结局，任务没成功就不拿审核状态冒充。 */
+const versionStateText = (version: ProtoVersion) =>
+  version.status && version.status !== 'succeeded'
+    ? productionStatusText[version.status] || version.status
+    : reviewText[version.reviewStatus] || version.reviewStatus;
+const versionTag = (version: ProtoVersion): 'primary' | 'success' | 'info' | 'warning' | 'danger' =>
+  version.status && version.status !== 'succeeded'
+    ? productionStatusTag[version.status]
+    : reviewTag[version.reviewStatus] || 'info';
 /** 审核期允许取回的证据文件；原生 .rp 正式下载另走交付校验。 */
 const reviewKinds = ['native_rp', 'rp1', 'audit', 'engine_check'];
 const fileSuffix: Record<string, string> = { native_rp: '.rp', rp1: '.json', audit: '.json', engine_check: '.json' };
@@ -712,19 +735,26 @@ const handleArchive = async (row: ProtoProject) => {
 };
 
 const openProject = async (row: ProtoProject) => {
-  releasePreview();
   stopWatch();
   liveTask.value = undefined;
+  project.value = undefined;
   generateKey = newRequestKey();
   verifyKey = newRequestKey();
   deliverKey = newRequestKey();
-  selected.value = undefined;
+  selectVersion();
   versions.value = [];
   versionTotal.value = 0;
   versionQuery.value.pageNum = 1;
   workDialog.visible = true;
-  await reloadProject(row.projectId);
-  await loadVersions();
+  try {
+    await reloadProject(row.projectId);
+    await loadVersions();
+  } catch {
+    workDialog.visible = false;
+    return;
+  }
+  const current = versions.value.find(version => version.versionId === project.value?.currentVersionId);
+  if (current) selectVersion(current);
   if (project.value?.activeTask) {
     void watchTask(project.value.activeTask.taskId);
   }
@@ -767,6 +797,9 @@ const watchTask = async (taskId: string) => {
       return;
     }
     await Promise.all([reloadProject(res.data.bizId), loadVersions()]);
+    const current = versions.value.find(version => version.versionId === project.value?.currentVersionId);
+    if (current) selectVersion(current);
+    void getList();
   } catch {
     stopWatch();
   }
@@ -1012,6 +1045,8 @@ onMounted(() => {
 }
 .page-preview {
   width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
   border: 1px solid var(--el-border-color);
 }
 </style>
