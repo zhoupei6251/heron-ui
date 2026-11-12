@@ -105,6 +105,66 @@
             description="结构化快照是后加的能力；更早的运行只留了一段文本记录。"
           />
 
+          <section v-if="selection" class="detail-block">
+            <h3 class="block-title">线内编辑的选择</h3>
+            <dl class="kv">
+              <dt>候选</dt>
+              <dd class="mono">{{ selection.candidateId ?? '—' }}</dd>
+              <dt>模板</dt>
+              <dd class="mono">{{ selection.templateId || '—' }}</dd>
+              <dt>叙事角度</dt>
+              <dd>{{ selection.storyAngle || '—' }}</dd>
+              <dt>数据源</dt>
+              <dd class="mono">
+                {{ selection.dataSourceKey || '—' }}
+                <span v-if="selection.digest" class="muted">（速览）</span>
+              </dd>
+            </dl>
+          </section>
+          <el-alert
+            v-else-if="selected.workId"
+            class="mt-2"
+            type="info"
+            :closable="false"
+            show-icon
+            title="这一版没有线内编辑记录"
+            description="选择记录从决策链接通之后才开始落盘，更早的版本只有总编辑那一段。"
+          />
+
+          <section v-if="review" class="detail-block">
+            <h3 class="block-title">AI 审稿</h3>
+            <dl class="kv">
+              <dt>结论</dt>
+              <dd>
+                <el-tag size="small" effect="plain" :type="review.result === 'PASS' ? 'success' : 'danger'">
+                  {{ review.result || '—' }}
+                </el-tag>
+                <span v-if="review.repairAttempts" class="muted">修了 {{ review.repairAttempts }} 轮</span>
+              </dd>
+              <dt>审稿版本</dt>
+              <dd class="mono">{{ review.promptVersion || '—' }}</dd>
+              <dt>审于</dt>
+              <dd>{{ review.reviewedAt || '—' }}</dd>
+            </dl>
+            <ul v-if="review.issues?.length" class="issue-list">
+              <li v-for="(issue, index) in review.issues" :key="index" class="issue">
+                <span :class="['issue-severity', 'is-' + (issue.severity || '').toLowerCase()]">{{ issue.severity }}</span>
+                <span class="issue-segment">{{ issue.segmentId }}</span>
+                <span class="issue-text">{{ issue.description }}</span>
+              </li>
+            </ul>
+            <p v-else class="muted">没有问题条目。</p>
+          </section>
+          <el-alert
+            v-else-if="selected.workId"
+            class="mt-2"
+            type="warning"
+            :closable="false"
+            show-icon
+            title="这一版没有 AI 审稿记录"
+            description="自动发布门禁会直接拒掉它——没有记录就无法证明审稿发生过。"
+          />
+
           <section class="detail-block">
             <h3 class="block-title">产出</h3>
             <p v-if="selected.workId" class="work-link">
@@ -125,7 +185,7 @@
 </template>
 
 <script setup name="HeronEditorial" lang="ts">
-import type { EditorialPools, EditorialRun, EditorialRunQuery } from '@/api/heron/editorial/types';
+import type { EditorialPools, EditorialReviewRecord, EditorialRun, EditorialRunQuery, EditorialSelection } from '@/api/heron/editorial/types';
 import { listEditorialRuns } from '@/api/heron/editorial';
 import { useLoading } from '@/hooks/async/useLoading';
 import { useSearchToggle } from '@/hooks/form/useSearchToggle';
@@ -159,6 +219,24 @@ const pools = computed<EditorialPools | null>(() => {
   if (!selected.value?.poolJson) return null;
   try {
     return JSON.parse(selected.value.poolJson) as EditorialPools;
+  } catch {
+    return null;
+  }
+});
+
+const selection = computed<EditorialSelection | null>(() => {
+  if (!selected.value?.selectionJson) return null;
+  try {
+    return JSON.parse(selected.value.selectionJson) as EditorialSelection;
+  } catch {
+    return null;
+  }
+});
+
+const review = computed<EditorialReviewRecord | null>(() => {
+  if (!selected.value?.reviewJson) return null;
+  try {
+    return JSON.parse(selected.value.reviewJson) as EditorialReviewRecord;
   } catch {
     return null;
   }
@@ -432,6 +510,49 @@ onMounted(() => {
   margin: 0;
   color: var(--app-text-faint);
   font-size: var(--app-font-size-sm);
+}
+
+.issue-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--app-surface-border);
+}
+
+.issue {
+  display: grid;
+  grid-template-columns: 62px 84px 1fr;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--app-surface-border);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.6;
+}
+
+.issue-severity {
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+  letter-spacing: 0.04em;
+  color: var(--app-text-faint);
+
+  &.is-blocker,
+  &.is-major {
+    color: var(--app-danger);
+  }
+
+  &.is-minor {
+    color: var(--app-warning);
+  }
+}
+
+.issue-segment {
+  font-family: var(--app-font-mono);
+  color: var(--app-text-faint);
+  word-break: break-all;
+}
+
+.issue-text {
+  color: var(--app-text-body);
 }
 
 @media (max-width: 1100px) {
