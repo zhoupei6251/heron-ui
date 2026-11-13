@@ -75,7 +75,7 @@ web
 ## Evidence on Hand
 
 - 业务规格（唯一有效版）：`../heron/docs/plans/2026-10-29-heron-business-spec.md`
-- 前端基座 plus-ui 6.0.0 的标准系统管理页；**没有任何 heron 业务页**
+- 前端基座 plus-ui 6.1.0 的标准系统管理页；**没有任何 heron 业务页**
 - 后端业务模块近乎为空（`ruoyi-heron` 只有骨架）
 - **没有真实成片、没有真实原型、没有真实用例、没有客户证言、没有性能实测数据**
 

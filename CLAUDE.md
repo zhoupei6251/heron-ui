@@ -1,10 +1,10 @@
-# heron-ui 前端（plus-ui 6.0.0）
+# heron-ui 前端（plus-ui 6.1.0）
 
 > 项目级指令，覆盖 `~/.claude/CLAUDE.md` 中冲突的默认习惯；全局的 L1–L4 自检（能配置/能复用/一条命令解决就不写代码）仍然有效。
 
 ## 这是什么
 
-plus-ui 6.0.0 基线：Vue 3 + TypeScript + Element Plus + Vite 8 + UnoCSS + Pinia，包管理 pnpm，格式 oxfmt、lint oxlint。
+plus-ui 6.1.0 基线：Vue 3 + TypeScript + Element Plus + Vite 8 + UnoCSS + Pinia，包管理 pnpm，格式 oxfmt、lint oxlint。
 标题已是 `Heron 后台管理系统`，业务页尚不存在；后端在 `../heron`（业务模块 `ruoyi-heron`，开发代理前缀 `/dev-api`）。
 业务规格见 `../heron/docs/plans/2026-10-29-heron-business-spec.md`。
 
