@@ -62,3 +62,7 @@ heron 专属约束（覆盖这些工具的通用建议）：
 
 - `pnpm exec vue-tsc --noEmit` → 动页面/import 再 `pnpm lint` → 改公共 hooks/组件/构建再 `pnpm build`
 - 起开发服务：`pnpm dev`
+
+## Harness（自动加载）
+
+@harness-factory/CLAUDE.harness.md
