@@ -27,6 +27,40 @@
       </p>
     </el-card>
 
+    <el-card v-if="cost" shadow="hover" class="cost-panel">
+      <div class="cost-row">
+        <div class="cost-item">
+          <span class="cost-label">近 {{ cost.days }} 天研究</span>
+          <span class="cost-value">{{ cost.researchCount }}</span>
+        </div>
+        <div class="cost-item">
+          <span class="cost-label">平均 token / 次</span>
+          <span class="cost-value">{{ num(cost.avgTokens) }}</span>
+        </div>
+        <div class="cost-item">
+          <span class="cost-label">工具调用</span>
+          <span class="cost-value">{{ num(cost.toolCalls) }}</span>
+        </div>
+        <div class="cost-item">
+          <span class="cost-label">采纳率</span>
+          <span class="cost-value">{{ cost.acceptanceRate ? Math.round(Number(cost.acceptanceRate) * 100) + '%' : '-' }}</span>
+        </div>
+        <div class="cost-item">
+          <span class="cost-label">核验 / 冲突</span>
+          <span class="cost-value">{{ cost.verifiedCount }} / {{ cost.conflictCount }}</span>
+        </div>
+        <div class="cost-grades">
+          <el-tag v-for="g in cost.byGrade" :key="g.grade" size="small" effect="plain" class="grade-tag">
+            {{ g.grade }} · {{ g.count }} 次 · {{ num(g.avgTokens) }} token
+          </el-tag>
+        </div>
+      </div>
+      <p class="cost-hint">
+        分档均值分开算——L1 和 L3 的单次成本差一个数量级，混在一起的平均值没有参考价值。
+        采纳率的分母是已出决策的研究，不是全部研究。
+      </p>
+    </el-card>
+
     <el-card shadow="hover" class="table-panel">
       <el-table v-loading="loading" border class="data-table" :data="rows">
         <el-table-column label="判断" width="90" align="center">
@@ -71,6 +105,15 @@
         <el-table-column label="操作" width="95" align="center" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row as ContentDecision)">详情</el-button>
+            <el-button
+              v-if="row.status === 'proposed'"
+              v-hasPermi="['heron:decision:decide']"
+              link
+              type="success"
+              @click="handlePromote(row as ContentDecision)"
+            >
+              提升
+            </el-button>
             <el-button
               v-if="row.status === 'proposed'"
               v-hasPermi="['heron:decision:decide']"
@@ -148,9 +191,9 @@
             v-if="detail?.status === 'proposed'"
             v-hasPermi="['heron:decision:decide']"
             type="primary"
-            @click="openDecide(detail!, true)"
+            @click="handlePromote(detail!)"
           >
-            采 纳
+            采纳并提升
           </el-button>
           <el-button @click="detailVisible = false">关 闭</el-button>
         </div>
@@ -184,8 +227,8 @@
 </template>
 
 <script setup name="HeronDecision" lang="ts">
-import type { ContentDecision, ContentDecisionQuery, DecisionStatus, DecisionType } from '@/api/heron/decision/types';
-import { acceptDecision, getDecision, listDecision, rejectDecision } from '@/api/heron/decision';
+import type { ContentDecision, ContentDecisionQuery, DecisionStatus, DecisionType, ResearchCost } from '@/api/heron/decision/types';
+import { acceptDecision, getDecision, getResearchCost, listDecision, promoteDecision, rejectDecision } from '@/api/heron/decision';
 import { useLoading } from '@/hooks/async/useLoading';
 import modal from '@/plugins/modal';
 import { decisionStatusTag, decisionStatusText, decisionTypeTag, decisionTypeText } from './state';
@@ -236,6 +279,19 @@ const conflictSummary = (row?: ContentDecision) => {
   return count ? `核验提出 ${count} 条问题，点详情查看` : '核验未指出具体问题';
 };
 
+const cost = ref<ResearchCost>();
+
+const num = (value?: number | null) =>
+  value === null || value === undefined ? '-' : value.toLocaleString();
+
+const loadCost = async () => {
+  try {
+    cost.value = (await getResearchCost(30)).data;
+  } catch {
+    // 成本概览失败不阻塞决策列表
+  }
+};
+
 const getList = async () => {
   await withLoading(async () => {
     const res = await listDecision({ ...queryParams.value });
@@ -266,6 +322,23 @@ const openDecide = (row: ContentDecision, accepted: boolean) => {
   decide.value = { visible: true, accepted, note: '', target: row, submitting: false };
 };
 
+/**
+ * 采纳并提升为候选。两个动作合成一步：只采纳不提升，那条判断就停在决策中心没人用。
+ * 提升只产出候选，不建生产任务——生产仍由人认领。
+ */
+const handlePromote = async (row: ContentDecision) => {
+  try {
+    await modal.confirm(`采纳判断并提升为选题候选？
+候选进入选题池，仍需人认领才生产。`);
+  } catch {
+    return;
+  }
+  const res = await promoteDecision(row.decisionId);
+  modal.msgSuccess('已提升为候选 ' + (res.data?.candidateId || ''));
+  detailVisible.value = false;
+  await getList();
+};
+
 const submitDecide = async () => {
   const target = decide.value.target;
   if (!target) return;
@@ -290,7 +363,10 @@ const submitDecide = async () => {
   }
 };
 
-onMounted(getList);
+onMounted(() => {
+  void getList();
+  void loadCost();
+});
 </script>
 
 <style lang="scss" scoped>
@@ -321,6 +397,51 @@ onMounted(getList);
 }
 
 .toolbar-hint {
+  margin: 12px 0 0;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.7;
+}
+
+.cost-panel {
+  border: 1px solid var(--app-surface-border);
+}
+
+.cost-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.cost-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cost-label {
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-xs);
+}
+
+.cost-value {
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-lg);
+  font-weight: 600;
+}
+
+.cost-grades {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.grade-tag {
+  font-family: var(--app-font-mono);
+}
+
+.cost-hint {
   margin: 12px 0 0;
   color: var(--app-text-faint);
   font-size: var(--app-font-size-xs);

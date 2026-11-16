@@ -38,3 +38,33 @@ export interface ContentDecision {
 }
 
 export type VerificationVerdict = 'AGREE' | 'DISAGREE' | 'UNCERTAIN';
+
+export interface GradeCost {
+  grade: string;
+  count: number;
+  avgTokens: number;
+  succeeded: number;
+}
+
+export interface DecisionCount {
+  decisionType: string;
+  count: number;
+  accepted: number;
+}
+
+/** 成本与质量概览，给监督工作台用。 */
+export interface ResearchCost {
+  days: number;
+  researchCount: number;
+  decidedCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  avgTokens: number;
+  toolCalls: number;
+  byGrade: GradeCost[];
+  byDecision: DecisionCount[];
+  verifiedCount: number;
+  conflictCount: number;
+  acceptedCount: number;
+  acceptanceRate: string | null;
+}
