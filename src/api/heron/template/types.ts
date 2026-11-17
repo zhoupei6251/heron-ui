@@ -1,3 +1,14 @@
+/** 视觉风格。色值来自模板的 design token，前端不另抄一份。 */
+export interface VideoStyle {
+  key: string;
+  name: string;
+  label: string;
+  role?: string;
+  bg?: string;
+  fg?: string;
+  accent?: string;
+}
+
 /** 模板是 data/templates 下带 LOCK.json 的目录，不是数据库记录。 */
 export interface VideoTemplate {
   key: string;
@@ -15,4 +26,6 @@ export interface VideoTemplate {
   aspectRatio?: string;
   minDuration?: number;
   maxDuration?: number;
+  /** 老模板没有风格声明时为 null。 */
+  style?: VideoStyle | null;
 }

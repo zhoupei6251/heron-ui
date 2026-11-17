@@ -22,6 +22,18 @@
           </el-tag>
         </header>
         <h3 class="template-name">{{ item.name }}</h3>
+        <div v-if="item.style" class="style-strip">
+          <span class="style-plate" :style="{ background: item.style.bg, color: item.style.fg }">
+            <b :style="{ background: item.style.fg, color: item.style.bg }">Aa</b>
+            <i :style="{ background: item.style.accent }"></i>
+          </span>
+          <span class="style-text">
+            <strong>{{ item.style.label }}</strong>
+            <em>{{ item.style.name }}</em>
+            <small v-if="item.style.role">{{ item.style.role }}</small>
+          </span>
+        </div>
+        <p v-else class="style-missing">未声明视觉风格（老模板只写了版式）</p>
         <p class="template-desc">{{ item.description || '（模板未写描述）' }}</p>
         <dl v-if="item.locked" class="template-meta">
           <div><dt>版本</dt><dd class="mono">{{ item.templateVersion || '-' }}</dd></div>
@@ -161,6 +173,72 @@ onMounted(getList);
   color: var(--app-text-title);
   font-size: var(--app-font-size-base);
   font-weight: 600;
+}
+
+/* 风格预览：色板直接来自模板 design token，看一眼就知道这套皮长什么样 */
+.style-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.style-plate {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border: 1px solid var(--app-surface-border);
+  border-radius: var(--app-radius-base);
+
+  b {
+    font-size: var(--app-font-size-lg);
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  i {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    height: 3px;
+    border-radius: 2px;
+  }
+}
+
+.style-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  strong {
+    color: var(--app-text-body);
+    font-size: var(--app-font-size-xs);
+    font-weight: 600;
+  }
+
+  em {
+    color: var(--app-text-faint);
+    font-family: var(--app-font-mono);
+    font-size: var(--app-font-size-2xs);
+    font-style: normal;
+  }
+
+  small {
+    color: var(--app-text-muted);
+    font-size: var(--app-font-size-2xs);
+    line-height: 1.6;
+  }
+}
+
+.style-missing {
+  margin: 0;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-2xs);
 }
 
 .template-desc {
