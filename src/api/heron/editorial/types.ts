@@ -43,6 +43,8 @@ export interface EditorialSelection {
 export interface EditorialReviewRecord {
   schemaVersion?: string;
   result?: 'PASS' | 'FAIL' | string;
+  /** 核心断言能否被证据支持；解说线才有，数据看板线的事实由 Java 给。 */
+  coreFacts?: 'supported' | 'unverifiable' | 'unsupported' | string;
   issues?: {
     severity?: 'BLOCKER' | 'MAJOR' | 'MINOR' | string;
     segmentId?: string;

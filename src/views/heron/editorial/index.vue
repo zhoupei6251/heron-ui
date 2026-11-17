@@ -141,6 +141,18 @@
                 </el-tag>
                 <span v-if="review.repairAttempts" class="muted">修了 {{ review.repairAttempts }} 轮</span>
               </dd>
+              <dt>核心断言</dt>
+              <dd>
+                <el-tag
+                  v-if="review.coreFacts"
+                  size="small"
+                  effect="plain"
+                  :type="review.coreFacts === 'supported' ? 'success' : 'danger'"
+                >
+                  {{ coreFactsText[review.coreFacts] || review.coreFacts }}
+                </el-tag>
+                <span v-else class="muted">未记录（旧审稿契约，自动发布会拒）</span>
+              </dd>
               <dt>审稿版本</dt>
               <dd class="mono">{{ review.promptVersion || '—' }}</dd>
               <dt>审于</dt>
@@ -211,6 +223,13 @@ const statusText = (status?: string) =>
   ({ produced: '已产出', skipped: '已跳过', failed: '失败' })[status || ''] || status || '-';
 const statusTag = (status?: string) => (status === 'produced' ? 'success' : status === 'failed' ? 'danger' : 'info');
 const reviewText: Record<string, string> = { pending: '待审片', approved: '已通过', rejected: '已驳回' };
+
+/** 核心断言的证据状态：核得住 / 核不了 / 没依据。只有第一种能自动发布。 */
+const coreFactsText: Record<string, string> = {
+  supported: '有据',
+  unverifiable: '核不了',
+  unsupported: '无据'
+};
 
 const runKey = (row: EditorialRun) => `${row.slotDate}#${row.slotTime}`;
 
