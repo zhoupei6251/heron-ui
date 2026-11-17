@@ -1,4 +1,4 @@
-export type ResearchStatus = 'queued' | 'running' | 'succeeded' | 'partial' | 'failed' | 'cancelled';
+export type ResearchStatus = 'queued' | 'running' | 'cancelling' | 'succeeded' | 'partial' | 'failed' | 'cancelled';
 
 export interface ResearchTaskQuery extends PageQuery {
   opportunityId?: string;
@@ -29,6 +29,10 @@ export interface ResearchTask {
   sessionId?: string;
   attemptNo?: number | null;
   resultText?: string;
+  /** 结构化研究报告 JSON：结论、要点、风险与依据的数据版本。 */
+  reportJson?: string | null;
+  /** 证据链 JSON：工具调用轨迹、冻结快照与未经验证的引用。 */
+  evidenceJson?: string | null;
   errorCode?: string;
   errorReason?: string;
   createTime?: string;

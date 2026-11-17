@@ -94,7 +94,8 @@ import { getMetricBreakdown } from '@/api/heron/metrics';
 const tabs: { key: MetricDimension; label: string; bucket: string }[] = [
   { key: 'template', label: '按模板', bucket: '模板' },
   { key: 'line', label: '按生产线', bucket: '生产线' },
-  { key: 'angle', label: '按叙事角度', bucket: '叙事角度' }
+  { key: 'angle', label: '按叙事角度', bucket: '叙事角度' },
+  { key: 'source', label: '按来源', bucket: '来源' }
 ];
 
 const dimension = ref<MetricDimension>('template');

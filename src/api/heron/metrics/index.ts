@@ -1,7 +1,7 @@
 import type { AxiosPromise } from '@/utils/api-types';
 import request from '@/utils/request';
 
-export type MetricDimension = 'template' | 'line' | 'angle';
+export type MetricDimension = 'template' | 'line' | 'angle' | 'source';
 
 /** 一个分组的汇总。样本数必须一起看：只有一条数据的平均值不是规律。 */
 export interface MetricBreakdown {

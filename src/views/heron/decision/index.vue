@@ -110,6 +110,8 @@
               v-hasPermi="['heron:decision:decide']"
               link
               type="success"
+              :disabled="row.decisionType !== 'PRODUCE'"
+              :title="row.decisionType !== 'PRODUCE' ? '只有「建议生产」的判断能提升为候选' : ''"
               @click="handlePromote(row as ContentDecision)"
             >
               提升
@@ -181,9 +183,15 @@
           </ul>
         </template>
         <p v-else class="faint">核验员没有指出具体问题</p>
+        <p v-if="detail.verificationOverrideReason" class="verify-label">
+          人工放行理由：{{ detail.verificationOverrideReason }}
+        </p>
       </div>
       <p v-else-if="detail" class="faint verify-none">
         这条判断没有经过独立核验（只对「建议生产」的判断跑核验）。
+      </p>
+      <p v-if="detail?.evidenceOverrideReason" class="report-label">
+        证据链人工放行理由：{{ detail.evidenceOverrideReason }}
       </p>
       <template #footer>
         <div class="dialog-footer">
@@ -191,6 +199,7 @@
             v-if="detail?.status === 'proposed'"
             v-hasPermi="['heron:decision:decide']"
             type="primary"
+            :disabled="detail?.decisionType !== 'PRODUCE'"
             @click="handlePromote(detail!)"
           >
             采纳并提升
@@ -325,18 +334,64 @@ const openDecide = (row: ContentDecision, accepted: boolean) => {
 /**
  * 采纳并提升为候选。两个动作合成一步：只采纳不提升，那条判断就停在决策中心没人用。
  * 提升只产出候选，不建生产任务——生产仍由人认领。
+ *
+ * <p>两道闸都要人工写理由：核验判了冲突、证据链不完整。
+ * 证据链那条只能在被拒之后才知道——后端拒绝时采纳会一并回滚，所以重试是安全的。
  */
+const finishPromote = async (candidateId?: string) => {
+  modal.msgSuccess('已提升为候选 ' + (candidateId || ''));
+  detailVisible.value = false;
+  await getList();
+};
+
+const errorText = (error: unknown) =>
+  String((error as { message?: string })?.message || (error as { msg?: string })?.msg || '');
+
 const handlePromote = async (row: ContentDecision) => {
+  if (row.decisionType !== 'PRODUCE') {
+    modal.msgWarning('只有「建议生产」的判断能提升为候选');
+    return;
+  }
   try {
     await modal.confirm(`采纳判断并提升为选题候选？
 候选进入选题池，仍需人认领才生产。`);
   } catch {
     return;
   }
-  const res = await promoteDecision(row.decisionId);
-  modal.msgSuccess('已提升为候选 ' + (res.data?.candidateId || ''));
-  detailVisible.value = false;
-  await getList();
+  let verificationOverride: string | undefined;
+  if (row.verificationVerdict === 'DISAGREE') {
+    try {
+      const { value } = await modal.prompt('独立核验与研究员结论冲突，说明放行理由后才能提升：');
+      verificationOverride = (value || '').trim();
+    } catch {
+      return;
+    }
+    if (!verificationOverride) {
+      modal.msgWarning('核验冲突必须有放行理由');
+      return;
+    }
+  }
+  try {
+    const res = await promoteDecision(row.decisionId, verificationOverride);
+    await finishPromote(res.data?.candidateId);
+  } catch (error) {
+    if (!errorText(error).includes('证据链')) throw error;
+    let evidenceOverride: string | undefined;
+    try {
+      const { value } = await modal.prompt(
+        '这条判断的证据链不完整：模型声称查过的引用在本次执行记录里找不到。说明放行理由后继续：'
+      );
+      evidenceOverride = (value || '').trim();
+    } catch {
+      return;
+    }
+    if (!evidenceOverride) {
+      modal.msgWarning('证据链不完整必须有放行理由');
+      return;
+    }
+    const res = await promoteDecision(row.decisionId, verificationOverride, evidenceOverride);
+    await finishPromote(res.data?.candidateId);
+  }
 };
 
 const submitDecide = async () => {

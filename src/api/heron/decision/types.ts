@@ -34,6 +34,10 @@ export interface ContentDecision {
   verificationReason?: string | null;
   /** 核验员指出的具体冲突，JSON 数组文本。 */
   verificationConflicts?: string | null;
+  /** 核验判 DISAGREE 时人工放行的理由；为空表示没有覆盖。 */
+  verificationOverrideReason?: string | null;
+  /** 证据链不完整时人工放行的理由；为空表示没有覆盖。 */
+  evidenceOverrideReason?: string | null;
   createTime?: string;
 }
 

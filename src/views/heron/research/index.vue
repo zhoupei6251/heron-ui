@@ -60,7 +60,7 @@
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row as ResearchTask)">详情</el-button>
             <el-button
-              v-if="isResearchActive(row.status)"
+              v-if="canCancel(row.status)"
               v-hasPermi="['heron:research:cancel']"
               link
               type="danger"
@@ -149,6 +149,75 @@
           </el-descriptions-item>
         </el-descriptions>
 
+        <div v-if="report" class="report-block">
+          <h4>结构化报告</h4>
+          <p class="report-head">
+            <el-tag :type="decisionTag(report.decision)" effect="plain">
+              {{ report.decision || '无结论' }}
+            </el-tag>
+            <span class="faint">把握 {{ report.confidence || '-' }}</span>
+          </p>
+          <p v-if="report.reason" class="report-reason">{{ report.reason }}</p>
+          <template v-if="report.keyInsights && report.keyInsights.length">
+            <p class="report-label">关键要点</p>
+            <ul class="report-list">
+              <li v-for="(item, index) in report.keyInsights" :key="index">{{ item }}</li>
+            </ul>
+          </template>
+          <template v-if="report.riskWarnings && report.riskWarnings.length">
+            <p class="report-label">风险与不确定性</p>
+            <ul class="report-list">
+              <li v-for="(item, index) in report.riskWarnings" :key="index">{{ item }}</li>
+            </ul>
+          </template>
+          <p v-if="report.snapshot?.bound" class="report-label">
+            依据的数据版本：
+            <span class="mono">{{ report.snapshot.dataSha256 || '-' }}</span>
+            <span class="faint">（取于 {{ report.snapshot.retrievedAt || '未知时间' }}）</span>
+          </p>
+          <p v-else class="faint">这次研究没有绑定数据快照，结论事后无法复核。</p>
+        </div>
+
+        <div v-if="evidence" class="report-block">
+          <h4>
+            证据轨迹
+            <span class="faint">
+              {{ evidence.toolCallCount || 0 }} 次调用 · 冻结快照 {{ evidence.snapshotCount || 0 }} 份
+            </span>
+          </h4>
+          <el-table v-if="evidence.snapshots && evidence.snapshots.length" :data="evidence.snapshots" size="small" border>
+            <el-table-column prop="sourceKey" label="数据源" min-width="170" />
+            <el-table-column label="数据版本" min-width="150">
+              <template #default="{ row }">
+                <span class="mono">{{ shortSha(row.dataSha256) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="retrievedAt" label="取数时间" min-width="160" />
+          </el-table>
+          <p v-else class="faint">这次研究没有冻结任何数据快照——结论的数字无从复核。</p>
+          <p v-if="evidence.unverifiedCitations && evidence.unverifiedCitations.length" class="report-label is-bad">
+            模型声称查过、账本里找不到的引用：{{ evidence.unverifiedCitations.join('、') }}
+          </p>
+          <el-collapse>
+            <el-collapse-item :title="'工具调用（' + (evidence.calls?.length || 0) + '）'">
+              <div v-for="call in evidence.calls || []" :key="call.callId" class="call-row">
+                <p class="call-head">
+                  <span class="mono">#{{ call.callId }}</span>
+                  <span>{{ call.tool }}</span>
+                  <el-tag :type="call.errorCode ? 'danger' : 'info'" size="small" effect="plain">
+                    {{ call.status }}
+                  </el-tag>
+                  <span v-if="call.snapshotSourceKey" class="faint">
+                    {{ call.snapshotSourceKey }} @ {{ call.snapshotRetrievedAt }}（{{ shortSha(call.snapshotSha256) }}）
+                  </span>
+                </p>
+                <pre class="call-body">{{ call.request }}</pre>
+                <pre class="call-body">{{ call.response }}</pre>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+        </div>
+
         <div v-if="detail?.resultText" class="result-block">
           <h4>结论文本</h4>
           <pre class="result-text">{{ detail.resultText }}</pre>
@@ -171,7 +240,7 @@ import { useLoading } from '@/hooks/async/useLoading';
 import { useDialogState } from '@/hooks/dialog/useDialogState';
 import modal from '@/plugins/modal';
 import { utcText } from '../heron-time';
-import { isResearchActive, researchStatusTag, researchStatusText } from './state';
+import { canCancel, isResearchActive, researchStatusTag, researchStatusText } from './state';
 
 /** 研究是长任务（最长 10 分钟），轮询只为让状态自己往前走。 */
 const POLL_MS = 5000;
@@ -202,6 +271,53 @@ const detailDialog = useDialogState('研究详情').dialog;
 const detailLoading = ref(false);
 const detail = ref<ResearchTask>();
 const detailId = ref('');
+
+/** 结构化报告：后端存的是 JSON 文本。 */
+interface ResearchReportView {
+  decision?: string | null;
+  confidence?: string | null;
+  reason?: string | null;
+  keyInsights?: string[];
+  riskWarnings?: string[];
+  snapshot?: { bound?: boolean; dataSha256?: string; retrievedAt?: string };
+}
+
+/** 证据链：工具调用轨迹 + 本次 attempt 冻结的数据快照。 */
+interface ResearchEvidenceView {
+  toolCallCount?: number;
+  snapshotCount?: number;
+  unverifiedCitations?: string[];
+  snapshots?: { sourceKey: string; dataSha256?: string; retrievedAt?: string }[];
+  calls?: {
+    callId: string;
+    tool?: string;
+    status?: string;
+    errorCode?: string;
+    request?: string;
+    response?: string;
+    snapshotSourceKey?: string;
+    snapshotSha256?: string;
+    snapshotRetrievedAt?: string;
+  }[];
+}
+
+/** 解析失败时宁可不显示，也不要让整个详情页因为一条脏 JSON 打不开。 */
+const parseJson = <T,>(text?: string | null): T | null => {
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+};
+
+const report = computed(() => parseJson<ResearchReportView>(detail.value?.reportJson));
+const evidence = computed(() => parseJson<ResearchEvidenceView>(detail.value?.evidenceJson));
+
+const decisionTag = (decision?: string | null) =>
+  decision === 'PRODUCE' ? 'success' : decision === 'REJECT' ? 'danger' : 'info';
+
+const shortSha = (sha?: string | null) => (sha ? sha.slice(0, 12) : '-');
 
 const timeText = utcText;
 
@@ -470,6 +586,77 @@ onBeforeUnmount(deactivate);
     font-size: var(--app-font-size-sm);
     font-weight: 600;
   }
+}
+
+.report-block {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-surface-border);
+
+  h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    font-size: var(--app-font-size-sm);
+  }
+}
+
+.report-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+
+.report-reason {
+  margin: 0;
+  line-height: 1.8;
+  word-break: break-word;
+}
+
+.report-label {
+  margin: 10px 0 4px;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-xs);
+}
+
+.report-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--app-font-size-xs);
+  line-height: 1.8;
+}
+
+.call-row {
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--app-surface-border);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.call-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 4px;
+  font-size: var(--app-font-size-xs);
+}
+
+.call-body {
+  margin: 4px 0;
+  padding: 6px 8px;
+  max-height: 140px;
+  overflow: auto;
+  border-radius: 4px;
+  background: var(--app-surface-subtle, transparent);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-xs);
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .result-text {
