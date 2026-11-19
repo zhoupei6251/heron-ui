@@ -5,7 +5,7 @@
         <div class="toolbar-shell">
           <div class="table-heading">
             <h3>发布记录</h3>
-            <p>只要落过发布事实就列出，沙箱与命令行提交也算。命令行发布不回传作品链接，需要从抖音后台复制一次补进来。</p>
+            <p>查看发布事实与待核对尝试。已提交、结果未知和已发布分别展示；先核对平台结果，再处理后续提交。</p>
           </div>
           <div class="toolbar-actions">
             <right-toolbar v-model:show-search="showSearch" :search="false" @query-table="getList"></right-toolbar>
@@ -16,9 +16,14 @@
       <el-table v-loading="loading" border class="data-table" :data="rows">
         <el-table-column label="作品" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            <router-link class="work-link" :to="{ path: '/heron/work-studio', query: { workId: row.workId } }">
+            <router-link class="work-link" :to="{ path: '/heron/work-studio', query: { workId: row.workId, versionId: row.versionId } }">
               {{ row.workTitle || '作品 ' + row.workId }}
             </router-link>
+          </template>
+        </el-table-column>
+        <el-table-column label="发布状态" width="190" align="center">
+          <template #default="{ row }">
+            <el-tag :type="publicationTag[publicationState(row)]" effect="plain">{{ publicationText[publicationState(row)] }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="版本" width="70" align="center">
@@ -26,27 +31,33 @@
         </el-table-column>
         <el-table-column label="来源" width="150" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.publishSource === 'sandbox' ? 'warning' : 'success'" effect="plain">
-              {{ publishSourceText[row.publishSource || ''] || row.publishSource || '-' }}
-            </el-tag>
+            {{ publishSourceText[row.publishSource || row.publishAttempt?.source || ''] || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="账号" width="130" align="center">
-          <template #default="{ row }">{{ row.publishAccount || '-' }}</template>
+          <template #default="{ row }">{{ row.publishAccount || row.publishAttempt?.account || '-' }}</template>
         </el-table-column>
-        <el-table-column label="发布时间" width="170" align="center">
-          <template #default="{ row }">{{ timeText(row.publishAt) }}</template>
+        <el-table-column label="尝试登记时间" width="170" align="center">
+          <template #default="{ row }">{{ timeText(row.publishAttempt?.startedAt) }}</template>
+        </el-table-column>
+        <el-table-column label="平台发布时间" width="180" align="center">
+          <template #default="{ row }">
+            <span v-if="publicationState(row) === 'published'">{{ timeText(row.publishAt) }}</span>
+            <span v-else-if="publicationState(row) === 'sandbox'">不适用（沙箱）</span>
+            <span v-else-if="publicationState(row) === 'legacy_submitted'" class="muted">旧记录：{{ timeText(row.publishAt) }}<br />时间未重新核对</span>
+            <span v-else>尚未确认</span>
+          </template>
         </el-table-column>
         <el-table-column label="作品链接" min-width="240">
           <template #default="{ row }">
-            <a v-if="row.publishUrl" :href="row.publishUrl" target="_blank" rel="noopener noreferrer">
+            <a v-if="row.publishUrl && row.publishSource !== 'sandbox'" :href="row.publishUrl" target="_blank" rel="noopener noreferrer">
               {{ row.publishUrl }}
             </a>
             <span v-else-if="row.publishSource === 'douyin-cli'" class="link-missing">待补链接</span>
-            <span v-else class="muted">-</span>
+            <span v-else class="muted">{{ row.publishSource === 'sandbox' ? '未上抖音' : '平台结果待核对' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" align="center">
+        <el-table-column label="操作" width="150" align="center" fixed="right">
           <template #default="{ row }">
             <el-button
               v-if="row.publishSource === 'douyin-cli' && !row.publishUrl"
@@ -57,6 +68,8 @@
             >
               补链接
             </el-button>
+            <router-link v-else-if="isUnresolvedAttempt(row.publishAttempt)" class="work-link"
+              :to="{ path: '/heron/work-studio', query: { workId: row.workId, versionId: row.versionId } }">去核对</router-link>
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
@@ -91,13 +104,7 @@ import { useLoading } from '@/hooks/async/useLoading';
 import { useSearchToggle } from '@/hooks/form/useSearchToggle';
 import modal from '@/plugins/modal';
 import { utcText } from '../heron-time';
-
-const publishSourceText: Record<string, string> = {
-  manual: '人工已发布',
-  api: 'API 已发布',
-  'douyin-cli': '命令行已提交',
-  sandbox: '沙箱发布（未上抖音）'
-};
+import { isUnresolvedAttempt, publicationState, publicationTag, publicationText, publishSourceText } from '../news/publish-state';
 
 const rows = ref<NewsVideoVersion[]>([]);
 const total = ref(0);

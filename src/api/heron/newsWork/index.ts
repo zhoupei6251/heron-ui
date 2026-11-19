@@ -6,6 +6,7 @@ import type {
   NewsDraftForm,
   NewsGenerateForm,
   NewsReviewForm,
+  NewsPublishResolution,
   NewsVideoVersion,
   NewsWork,
   NewsWorkQuery
@@ -47,8 +48,7 @@ export const getNewsVersion = (workId: string, versionId: string): AxiosPromise<
 };
 
 /**
- * 一次确认：通过即由发布适配器写入回执，驳回只落审核结论。
- * 手动模式的唯一人工动作，替代原先「先审片再回填」两步。
+ * 一次确认：通过后登记尝试并上传，驳回只落审核结论；平台结果仍可能需要核对。
  * 发布走浏览器自动化时要跑几十秒，超时给足，别让前端先断开而后端还在发。
  */
 export const confirmNewsVersion = (
@@ -71,6 +71,18 @@ export const backfillNewsPublishUrl = (
   workUrl: string
 ): AxiosPromise<NewsVideoVersion> => {
   return request({ url: `/heron/newsWork/${workId}/versions/${versionId}/publish-url`, method: 'post', data: { workUrl } });
+};
+
+export const resolveNewsPublishAttempt = (
+  workId: string,
+  versionId: string,
+  attemptId: string,
+  data: NewsPublishResolution
+): AxiosPromise<NewsVideoVersion> => {
+  return request({
+    url: `/heron/newsWork/${workId}/versions/${versionId}/publish-attempts/${attemptId}/resolve`,
+    method: 'post', data
+  });
 };
 
 /**

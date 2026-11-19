@@ -145,9 +145,33 @@
               </div>
               <div v-if="previewUrl" class="preview-shell">
                 <img v-if="previewKind === 'contact_sheet'" :src="previewUrl" alt="成片九宫格核对图" class="contact-sheet" />
-                <video v-else :src="previewUrl" controls class="player" />
+                <video v-else ref="previewPlayer" :src="previewUrl" controls class="player"
+                  @loadedmetadata="applyPendingSeek" @timeupdate="updatePlayhead" />
               </div>
               <p v-else class="muted">点上面的按钮加载预览。产物受登录态保护，不能直接拖进播放器。</p>
+              <div v-if="reviewSegments.length" class="segment-review" aria-label="逐段审片">
+                <h4>逐段审片 <span class="block-hint">点击时间定位，暂停核对画面</span></h4>
+                <p v-if="subtitleLoading" class="muted" role="status">正在读取实际口播字幕…</p>
+                <p v-else-if="subtitleError" class="muted" role="status">{{ subtitleError }}</p>
+                <p class="muted">字幕仅展示完整落在本段内的句子；跨段句子请播放前后片段核对。</p>
+                <ol class="segment-list">
+                  <li v-for="segment in reviewSegments" :key="segment.id"
+                    :class="{ 'is-current': previewKind === 'mp4' && playheadMs >= segment.startMs && playheadMs < segment.endMs }">
+                    <div class="segment-heading">
+                      <el-button size="small" :disabled="previewLoading || !artifact('mp4')?.available"
+                        :aria-label="`定位${segment.label}，${timelineTime(segment.startMs)}`" @click="seekSegment(segment)">
+                        {{ segment.label }} · {{ timelineTime(segment.startMs) }} — {{ timelineTime(segment.endMs) }}
+                      </el-button>
+                      <el-button v-if="selected.reviewStatus === 'pending' && selected.taskStatus === 'succeeded'"
+                        v-hasPermi="['heron:newsWork:review']" size="small" link type="warning" @click="noteSegment(segment)">
+                        标记问题
+                      </el-button>
+                    </div>
+                    <p class="segment-text">{{ segment.text || (subtitleLoading ? '正在读取口播…' : '本段暂无可显示的完整字幕，请播放核对。') }}</p>
+                  </li>
+                </ol>
+              </div>
+              <p v-else class="muted segment-empty">此版本没有可用的实测分段时间，请用成片播放器审片。</p>
             </template>
             <p v-else class="muted">先在左边选一个版本。</p>
           </section>
@@ -178,7 +202,8 @@
                   </el-radio-group>
                 </el-form-item>
                 <el-form-item v-if="reviewForm.decision === 'rejected'" label="驳回理由" prop="reason">
-                  <el-input v-model="reviewForm.reason" type="textarea" :rows="3" maxlength="1000" show-word-limit />
+                  <el-input v-model="reviewForm.reason" type="textarea" :rows="3" maxlength="1000" show-word-limit
+                    placeholder="注明段落时间，并说明事实、口播或画面的具体问题" />
                 </el-form-item>
                 <el-form-item label="指纹">
                   <el-checkbox v-model="fingerprintsConfirmed">
@@ -196,7 +221,7 @@
                     {{ reviewForm.decision === 'approved' ? '确认并发布' : '提交驳回' }}
                   </el-button>
                   <span v-if="reviewForm.decision === 'approved'" class="review-hint">
-                    通过后由系统立即发布并写入回执
+                    通过后提交发布，平台结果仍需核对
                   </span>
                 </el-form-item>
               </el-form>
@@ -219,8 +244,10 @@
             :description="selected.taskErrorReason || '失败原因未记录，可到生产任务页查该任务的阶段与用量。'"
           />
 
+          <PublishAttemptReview v-if="selected" :key="selected.versionId" :version="selected" @updated="handlePublishUpdated" />
+
           <section v-if="selected?.publishSource" class="col-block">
-            <h3 class="block-title">07 发布回执</h3>
+            <h3 class="block-title">平台回执</h3>
             <el-alert
               v-if="selected.publishSource === 'sandbox'"
               class="mb-2"
@@ -244,7 +271,7 @@
                 </el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="作品链接">
-                <a v-if="selected.publishUrl" :href="selected.publishUrl" target="_blank" rel="noopener noreferrer">
+                <a v-if="selected.publishUrl && selected.publishSource !== 'sandbox'" :href="selected.publishUrl" target="_blank" rel="noopener noreferrer">
                   {{ selected.publishUrl }}
                 </a>
                 <div v-else-if="selected.publishSource === 'douyin-cli'" class="publish-url-fix">
@@ -254,14 +281,16 @@
                     补链接
                   </el-button>
                 </div>
-                <span v-else>-</span>
+                <span v-else>{{ selected.publishSource === 'sandbox' ? '沙箱没有平台作品链接' : '-' }}</span>
               </el-descriptions-item>
               <el-descriptions-item label="发布账号">{{ selected.publishAccount || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="发布时间">{{ timeText(selected.publishAt) }}</el-descriptions-item>
+              <el-descriptions-item :label="selected.publishSource === 'sandbox' ? '沙箱记录时间' : publicationState(selected) === 'legacy_submitted' ? '历史记录时间（未重新核对）' : '发布时间'">
+                {{ timeText(selected.publishAt) }}
+              </el-descriptions-item>
             </el-descriptions>
           </section>
 
-          <section v-if="selected?.publishSource" class="col-block">
+          <section v-if="publicationState(selected) === 'published'" class="col-block">
             <h3 class="block-title">08 发布表现</h3>
             <div class="metric-grid">
               <el-input-number v-model="metricForm.plays" :min="0" :controls="false" placeholder="播放量" size="small" />
@@ -378,6 +407,7 @@ import {
   fetchNewsPreview,
   generateNewsVideo,
   getNewsWork,
+  getNewsVersion,
   listNewsVersions,
   confirmNewsVersion,
   backfillNewsPublishUrl,
@@ -391,18 +421,16 @@ import modal from '@/plugins/modal';
 import { download } from '@/utils/request';
 import { utcText } from '../../heron-time';
 import { isProductionActive, productionStatusTag, productionStatusText } from '../../production/task-state';
+import { reviewTimeline, timelineTime } from './review-timeline';
+import type { ReviewSegment } from './review-timeline';
+import PublishAttemptReview from '../PublishAttemptReview.vue';
+import { confirmationMessage, publicationState, publishSourceText } from '../publish-state';
 
 const reviewText: Record<string, string> = { pending: '待审片', approved: '已通过', rejected: '已驳回' };
 const reviewTag: Record<string, 'info' | 'success' | 'danger'> = {
   pending: 'info',
   approved: 'success',
   rejected: 'danger'
-};
-const publishSourceText: Record<string, string> = {
-  manual: '人工已发布',
-  api: 'API 已发布',
-  'douyin-cli': '命令行已提交',
-  sandbox: '沙箱发布（未上抖音）'
 };
 
 const route = useRoute();
@@ -430,6 +458,8 @@ const versionLoading = ref(false);
 const versions = ref<NewsVideoVersion[]>([]);
 const versionTotal = ref(0);
 const versionQuery = ref<PageQuery>({ pageNum: 1, pageSize: 20 });
+let versionsRequest = 0;
+let versionRequest = 0;
 const selected = ref<NewsVideoVersion>();
 const reviewing = ref(false);
 const fingerprintsConfirmed = ref(false);
@@ -485,8 +515,7 @@ const savePublishUrl = async () => {
     const res = await backfillNewsPublishUrl(work.value.workId, selected.value.versionId, url);
     modal.msgSuccess('作品链接已补上');
     publishUrlInput.value = '';
-    selectVersion(res.data);
-    await Promise.all([loadVersions(), reloadWork(work.value.workId)]);
+    await handlePublishUpdated(res.data);
   } finally {
     publishUrlSaving.value = false;
   }
@@ -495,6 +524,15 @@ const savePublishUrl = async () => {
 const previewUrl = ref('');
 const previewKind = ref('');
 const previewLoading = ref(false);
+const previewPlayer = ref<HTMLVideoElement>();
+const playheadMs = ref(0);
+const subtitleText = ref('');
+const subtitleLoading = ref(false);
+const subtitleError = ref('');
+const reviewSegments = computed(() => reviewTimeline(selected.value?.checks, subtitleText.value));
+let previewRequest = 0;
+let subtitleRequest = 0;
+let pendingSeekMs: number | undefined;
 const capabilities = ref<ProductionCapabilities>();
 
 // shortcut: 生成受理键在打开作品时生成一次，重试复用同一个键；需要跨会话恢复时改由后端下发。
@@ -596,30 +634,118 @@ const watchTask = async (taskId: string) => {
 
 const loadVersions = async () => {
   if (!work.value) return;
+  const workId = work.value.workId;
+  const request = ++versionsRequest;
   versionLoading.value = true;
   try {
-    const res = await listNewsVersions(work.value.workId, versionQuery.value);
+    const res = await listNewsVersions(workId, versionQuery.value);
+    if (request !== versionsRequest || work.value?.workId !== workId) return;
     versions.value = res.data?.rows || [];
     versionTotal.value = res.data?.total || 0;
   } finally {
-    versionLoading.value = false;
+    if (request === versionsRequest) versionLoading.value = false;
   }
 };
 
 const selectVersion = (row?: NewsVideoVersion) => {
+  versionRequest++;
   releasePreview();
   fingerprintsConfirmed.value = false;
   reviewForm.value = { decision: 'approved', contactSha256: '', videoSha256: '', reason: '' };
   selected.value = row;
+  void loadReviewSubtitles();
   void loadMetrics(row?.versionId);
 };
 
+const selectRequestedVersion = async () => {
+  const workId = work.value?.workId;
+  const versionId = String(route.query.versionId || '');
+  if (!workId || !versionId) return;
+  const request = ++versionRequest;
+  try {
+    const result = await getNewsVersion(workId, versionId);
+    if (request === versionRequest && work.value?.workId === workId) selectVersion(result.data);
+  } catch {
+    if (request === versionRequest) modal.msgWarning('指定版本读取失败，请从版本历史选择。');
+  }
+};
+
+const handlePublishUpdated = async (row: NewsVideoVersion) => {
+  if (work.value?.workId !== row.workId) return;
+  if (selected.value?.versionId === row.versionId) selectVersion(row);
+  try {
+    const [, refreshed] = await Promise.all([loadVersions(), getNewsWork(row.workId)]);
+    if (work.value?.workId === row.workId) work.value = refreshed.data;
+  } catch {
+    modal.msgWarning('当前版本状态已更新，作品列表暂时刷新失败。');
+  }
+};
+
 const releasePreview = () => {
+  previewRequest++;
+  previewLoading.value = false;
+  pendingSeekMs = undefined;
+  playheadMs.value = 0;
   if (previewUrl.value) {
     URL.revokeObjectURL(previewUrl.value);
     previewUrl.value = '';
   }
   previewKind.value = '';
+};
+
+const loadReviewSubtitles = async () => {
+  const request = ++subtitleRequest;
+  subtitleText.value = '';
+  subtitleError.value = '';
+  subtitleLoading.value = false;
+  const version = selected.value;
+  const workId = work.value?.workId;
+  if (!version || !workId || !reviewSegments.value.length) return;
+  const file = version.artifacts?.find(item => item.kind === 'subtitles' && item.available);
+  if (!file) {
+    subtitleError.value = '此版本没有可读取的口播字幕，仍可按实测时间定位。';
+    return;
+  }
+  subtitleLoading.value = true;
+  try {
+    const blob = await fetchNewsPreview(workId, version.versionId, file.artifactId);
+    const text = await blob.text();
+    if (request === subtitleRequest) subtitleText.value = text;
+  } catch {
+    if (request === subtitleRequest) subtitleError.value = '字幕读取失败，请播放核对口播；实测时间仍可定位。';
+  } finally {
+    if (request === subtitleRequest) subtitleLoading.value = false;
+  }
+};
+
+const updatePlayhead = () => {
+  playheadMs.value = Math.round((previewPlayer.value?.currentTime || 0) * 1000);
+};
+
+const applyPendingSeek = () => {
+  const player = previewPlayer.value;
+  if (pendingSeekMs === undefined || !player || player.readyState < 1) return;
+  player.pause();
+  player.currentTime = Math.min(pendingSeekMs / 1000, Math.max(0, player.duration - 0.05));
+  pendingSeekMs = undefined;
+  updatePlayhead();
+};
+
+const seekSegment = async (segment: ReviewSegment) => {
+  const versionId = selected.value?.versionId;
+  if (!previewUrl.value || previewKind.value !== 'mp4') await loadPreview('mp4');
+  if (!versionId || selected.value?.versionId !== versionId || previewKind.value !== 'mp4' || !previewUrl.value) return;
+  pendingSeekMs = segment.startMs;
+  await nextTick();
+  applyPendingSeek();
+};
+
+const noteSegment = (segment: ReviewSegment) => {
+  const marker = `[${segment.label} ${timelineTime(segment.startMs)}—${timelineTime(segment.endMs)}] `;
+  reviewForm.value.decision = 'rejected';
+  if (!reviewForm.value.reason?.includes(marker)) {
+    reviewForm.value.reason = [reviewForm.value.reason, marker].filter(Boolean).join('\n').slice(0, 1000);
+  }
 };
 
 const handleSaveDraft = () => {
@@ -678,9 +804,16 @@ const handleCancelTask = async () => {
 const handlePreview = async (file: ProductionFile) => {
   if (!work.value || !selected.value) return;
   releasePreview();
-  const blob = await fetchNewsPreview(work.value.workId, selected.value.versionId, file.artifactId);
-  previewKind.value = file.kind;
-  previewUrl.value = URL.createObjectURL(blob);
+  const request = previewRequest;
+  previewLoading.value = true;
+  try {
+    const blob = await fetchNewsPreview(work.value.workId, selected.value.versionId, file.artifactId);
+    if (request !== previewRequest) return;
+    previewKind.value = file.kind;
+    previewUrl.value = URL.createObjectURL(blob);
+  } finally {
+    if (request === previewRequest) previewLoading.value = false;
+  }
 };
 
 const loadPreview = async (kind: string) => {
@@ -689,12 +822,7 @@ const loadPreview = async (kind: string) => {
     modal.msgError(kind === 'mp4' ? '这一版没有视频产物' : '这一版没有九宫格产物');
     return;
   }
-  previewLoading.value = true;
-  try {
-    await handlePreview(file);
-  } finally {
-    previewLoading.value = false;
-  }
+  await handlePreview(file);
 };
 
 const handleDownload = (file?: ProductionFile) => {
@@ -715,15 +843,25 @@ const handleReview = () => {
   reviewFormRef.value?.validate(async (valid: boolean) => {
     if (!valid || !work.value || !selected.value) return;
     reviewing.value = true;
+    const version = selected.value;
+    const workId = work.value.workId;
     try {
-      const res = await confirmNewsVersion(work.value.workId, selected.value.versionId, {
+      const res = await confirmNewsVersion(workId, version.versionId, {
         ...reviewForm.value,
         contactSha256: contactSha.value,
         videoSha256: videoSha.value
       });
-      modal.msgSuccess(reviewForm.value.decision === 'approved' ? '已确认，发布回执已写入' : '驳回已记录');
-      selectVersion(res.data);
-      await Promise.all([loadVersions(), reloadWork(work.value.workId)]);
+      const message = `v${res.data.versionNo} · ${confirmationMessage(res.data)}`;
+      if (['started', 'unknown'].includes(publicationState(res.data))) modal.msgWarning(message);
+      else modal.msgSuccess(message);
+      await handlePublishUpdated(res.data);
+    } catch {
+      try {
+        const current = await getNewsVersion(workId, version.versionId);
+        await handlePublishUpdated(current.data);
+      } catch {
+        modal.msgWarning('暂时无法刷新发布状态，请先到平台核对；系统不会自动重试上传。');
+      }
     } finally {
       reviewing.value = false;
     }
@@ -754,6 +892,10 @@ const load = async () => {
   liveTask.value = undefined;
   requestKey = newRequestKey();
   selected.value = undefined;
+  versionsRequest++;
+  versionRequest++;
+  subtitleRequest++;
+  subtitleText.value = '';
   versions.value = [];
   versionTotal.value = 0;
   versionQuery.value.pageNum = 1;
@@ -767,6 +909,8 @@ const load = async () => {
   try {
     await reloadWork(workId);
     await loadVersions();
+    if (route.query.versionId) await selectRequestedVersion();
+    else selectVersion(versions.value.find(row => row.versionId === work.value?.currentVersionId) || versions.value[0]);
     if (work.value?.activeTask) {
       void watchTask(work.value.activeTask.taskId);
     }
@@ -778,6 +922,7 @@ const load = async () => {
 };
 
 onBeforeUnmount(() => {
+  subtitleRequest++;
   stopWatch();
   releasePreview();
 });
@@ -787,6 +932,7 @@ onMounted(() => {
   void load();
 });
 watch(() => route.query.workId, load);
+watch(() => route.query.versionId, () => { if (!loading.value) void selectRequestedVersion(); });
 </script>
 
 <style lang="scss" scoped>
@@ -957,6 +1103,55 @@ watch(() => route.query.workId, load);
 
 .preview-shell {
   margin-top: 4px;
+}
+
+.segment-review {
+  margin-top: 16px;
+
+  h4 {
+    margin: 0 0 8px;
+    font-size: var(--app-font-size-sm);
+  }
+}
+
+.segment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    padding: 10px;
+    border: 1px solid var(--app-surface-border);
+    border-radius: var(--app-radius-base);
+  }
+
+  .is-current {
+    border-color: var(--el-color-primary);
+    background: var(--app-accent-softer);
+  }
+}
+
+.segment-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.segment-text {
+  margin: 8px 0 0;
+  color: var(--app-text-body);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.segment-empty {
+  margin-top: 12px;
 }
 
 .contact-sheet {

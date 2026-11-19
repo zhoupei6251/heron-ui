@@ -5,6 +5,36 @@ export type NewsReviewStatus = 'pending' | 'approved' | 'rejected';
 /** 发布来源必须区分开：v1 只有人工回填，接开放平台后才有 api，历史数据口径靠它判断。 */
 export type NewsPublishSource = 'manual' | 'api' | 'douyin-cli' | 'sandbox';
 
+export interface NewsPublishAttempt {
+  attemptId: string;
+  versionId: string;
+  videoSha: string;
+  source: string;
+  account?: string;
+  status: 'started' | 'unknown' | 'submitted' | 'published' | 'not_published';
+  startedAt?: string;
+  updatedAt?: string;
+  failureCode?: string;
+  resolvedBy?: string | number;
+  resolvedAt?: string;
+  resolutionReason?: string;
+}
+
+export interface NewsPublishReceipt {
+  workUrl: string;
+  account: string;
+  publishedAt: string;
+  videoSha256: string;
+}
+
+export interface NewsPublishResolution {
+  decision: 'published' | 'not_published';
+  videoSha256: string;
+  reason: string;
+  uploadStopped: boolean;
+  receipt?: NewsPublishReceipt;
+}
+
 export interface NewsWorkQuery extends PageQuery {
   title?: string;
   candidateId?: string;
@@ -31,6 +61,7 @@ export interface NewsVideoVersion {
   publishAt?: string;
   publishBy?: string | number;
   publishVideoSha?: string;
+  publishAttempt?: NewsPublishAttempt;
   createTime?: string;
   taskStatus?: ProductionStatus;
   taskErrorCode?: string;

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Heron 发布核对组件 · 假数据验收</title>
+<style>
+  body { margin: 0; padding: 24px; background: #f4f5f7; }
+  main { max-width: 1100px; margin: 0 auto; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; align-items: center; }
+  .fixture-preview { max-width: 100%; width: 640px; }
+  .fixture-label { padding: 10px 12px; margin: 0 0 10px; background: #fff3ce; color: #634500; border-radius: 6px; }
+  #requests { white-space: pre-wrap; overflow-wrap: anywhere; background: white; padding: 14px; margin-top: 16px; }
+</style>
+<main id="fixture-app">正在加载仅使用假数据的组件验收页…</main>
+<script type="module">
+  // 仅本地组件验收；所有业务请求由下方adapter截住，不连接后端或发布平台。
+  import { createApp, ref, h } from 'vue';
+  import { createPinia } from 'pinia';
+  import ElementPlus from 'element-plus';
+  import zhCn from 'element-plus/es/locale/lang/zh-cn';
+  import 'element-plus/dist/index.css';
+  import '/src/assets/styles/index.scss';
+  import 'virtual:uno.css';
+  import PublishAttemptReview from '/src/views/heron/news/PublishAttemptReview.vue';
+  import request from '/src/utils/request.ts';
+
+  let serial = 1;
+  const calls = ref([]);
+  const width = ref(640);
+  const selectedCase = ref('submitted');
+  const errors = ref([]);
+  const sample = (status) => {
+    const sandbox = status === 'sandbox';
+    return {
+      workId: 'demo-work', versionId: 'demo-version', versionNo: 1,
+      reviewStatus: 'approved', taskStatus: 'succeeded', reviewVideoSha: 'a'.repeat(64), reviewContactSha: 'b'.repeat(64),
+      publishSource: sandbox ? 'sandbox' : undefined,
+      publishAt: sandbox ? '2026-11-18T04:00:00' : undefined,
+      publishAttempt: { attemptId: 'demo-attempt-' + serial++, versionId: 'demo-version', videoSha: 'a'.repeat(64),
+        source: sandbox ? 'sandbox' : 'douyin-cli', account: '演示账号',
+        status: sandbox ? 'published' : status, startedAt: '2026-11-18T04:00:00' }
+    };
+  };
+  const version = ref(sample('submitted'));
+  let server = JSON.parse(JSON.stringify(version.value));
+  request.defaults.baseURL = 'fixture-only:';
+  request.defaults.adapter = async config => {
+    let data;
+    if (config.method === 'post' && config.url.includes('/resolve')) {
+      const body = JSON.parse(config.data);
+      calls.value.push({ action: '核对假数据', body });
+      server.publishAttempt.status = body.decision;
+      server.publishAttempt.resolutionReason = body.reason;
+      server.publishAttempt.resolvedAt = '2026-11-18T05:00:00';
+      if (body.receipt) {
+        server.publishSource = 'manual';
+        server.publishUrl = body.receipt.workUrl;
+        server.publishAt = body.receipt.publishedAt;
+        server.publishAccount = body.receipt.account;
+      }
+      data = server;
+    } else if (config.method === 'post' && config.url.endsWith('/confirm')) {
+      calls.value.push({ action: '模拟重新提交', body: JSON.parse(config.data) });
+      server = sample('submitted');
+      data = server;
+    } else if (config.method === 'get' && config.url.includes('/versions/')) {
+      data = server;
+    } else {
+      throw new Error('组件验收已阻止未定义请求：' + config.url);
+    }
+    return { data: { code: 200, data: JSON.parse(JSON.stringify(data)) }, status: 200,
+      statusText: 'OK', headers: {}, config, request: { responseType: '' } };
+  };
+  window.addEventListener('error', event => errors.value.push(event.message));
+  window.addEventListener('unhandledrejection', event => errors.value.push(String(event.reason)));
+  const app = createApp({ setup() {
+    return () => h('div', [
+      h('h1', { style: 'font-size:22px;margin:0 0 16px' }, '发布核对组件验收'),
+      h('div', { class: 'controls' }, [
+        h('label', ['示例状态 ', h('select', { id: 'case-select', value: selectedCase.value, onChange: event => {
+          selectedCase.value = event.target.value;
+          server = sample(selectedCase.value);
+          version.value = JSON.parse(JSON.stringify(server));
+        } }, ['submitted', 'unknown', 'started', 'not_published', 'sandbox'].map(value => h('option', { value }, value)))]),
+        h('button', { id: 'narrow', onClick: () => width.value = 360 }, '360px容器'),
+        h('button', { id: 'wide', onClick: () => width.value = 640 }, '640px容器')
+      ]),
+      h('div', { class: 'fixture-preview', style: { width: width.value + 'px' } }, [
+        h('p', { class: 'fixture-label' }, '仅假数据 · 演示发布权限 · 全部请求被测试替身截住，不会真实上传'),
+        h(PublishAttemptReview, { version: version.value, onUpdated: row => version.value = row })
+      ]),
+      h('pre', { id: 'requests' }, '测试请求数：' + calls.value.length + '\n' + JSON.stringify(calls.value, null, 2)),
+      h('p', { id: 'fixture-errors' }, '页面错误数：' + errors.value.length + (errors.value.length ? ' ' + errors.value.join('; ') : '')),
+      h('p', { style: 'font-size:12px' }, '浏览器时区：' + Intl.DateTimeFormat().resolvedOptions().timeZone)
+    ]);
+  } });
+  app.directive('hasPermi', {});
+  app.use(createPinia());
+  app.use(ElementPlus, { locale: zhCn });
+  app.mount('#fixture-app');
+</script>
+</html>
