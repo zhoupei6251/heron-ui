@@ -178,6 +178,83 @@
           />
 
           <section class="detail-block">
+            <h3 class="block-title">历史表现参考</h3>
+            <p class="muted">
+              按这次选择的内容维度列出历史分组的表现。这张卡只给人看，不进提示词，也不会自动改变编辑策略。
+            </p>
+            <p v-if="!referenceQuery" class="muted">本槽没有可用于参考的内容属性。</p>
+            <el-skeleton v-else-if="referenceLoading" :rows="3" animated />
+            <el-alert
+              v-else-if="referenceError"
+              type="info"
+              :closable="false"
+              show-icon
+              title="参考卡暂不可用"
+              :description="referenceError"
+            />
+            <template v-else-if="reference">
+              <dl class="kv">
+                <dt>维度</dt>
+                <dd>{{ referenceDimensionLabel }}</dd>
+                <dt>分组值</dt>
+                <dd class="mono">{{ reference.bucketValue || '—' }}</dd>
+                <dt>证据等级</dt>
+                <dd>
+                  <el-tag size="small" effect="plain" :type="reference.tier === 'L4' ? 'success' : 'info'">
+                    {{ reference.tier || '—' }}
+                  </el-tag>
+                </dd>
+                <dt>生成于</dt>
+                <dd>{{ reference.generatedAt || '—' }}</dd>
+              </dl>
+              <el-alert
+                v-if="reference.locked"
+                class="mt-2"
+                type="warning"
+                :closable="false"
+                show-icon
+                title="本维度已被人工锁定"
+                :description="`锁定理由：${reference.lockReason || '未记录'}；锁定至：${reference.scopeUntil || '未记录期限'}。锁定期间不展示聚合结论。`"
+              />
+              <template v-else>
+                <p v-if="reference.notice" class="muted">{{ reference.notice }}</p>
+                <el-table v-if="reference.buckets.length" :data="reference.buckets" size="small" border>
+                  <el-table-column label="分组" prop="bucket" min-width="120" />
+                  <el-table-column label="样本" width="76" align="center">
+                    <template #default="{ row }">{{ row.samples }} 条</template>
+                  </el-table-column>
+                  <el-table-column label="播放中位数" width="112" align="right">
+                    <template #default="{ row }">{{ referenceNumber(row.medianPlays) }}</template>
+                  </el-table-column>
+                  <el-table-column label="p25–p75" width="140" align="right">
+                    <template #default="{ row }">{{ referenceRange(row.p25Plays, row.p75Plays) }}</template>
+                  </el-table-column>
+                  <el-table-column label="离群倍数" width="98" align="right">
+                    <template #default="{ row }">{{ referenceRatio(row.outlierRatio) }}</template>
+                  </el-table-column>
+                  <el-table-column label="等级" width="76" align="center">
+                    <template #default="{ row }">
+                      <el-tag size="small" effect="plain">{{ row.tier }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="稳定" width="76" align="center">
+                    <template #default="{ row }">
+                      <el-tag size="small" effect="plain" :type="row.stable ? 'success' : 'danger'">
+                        {{ row.stable ? '稳' : '不稳' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="结论" min-width="220">
+                    <template #default="{ row }">{{ row.summary || '—' }}</template>
+                  </el-table-column>
+                </el-table>
+                <p v-else class="muted">这一维度还没有可展示的历史分组。</p>
+              </template>
+            </template>
+            <p v-else class="muted">这一维度还没有历史表现可参考。</p>
+          </section>
+
+          <section class="detail-block">
             <h3 class="block-title">产出</h3>
             <p v-if="selected.workId" class="work-link">
               <router-link :to="{ path: '/heron/work-studio', query: { workId: selected.workId } }">
@@ -199,8 +276,11 @@
 <script setup name="HeronEditorial" lang="ts">
 import type { EditorialPools, EditorialReviewRecord, EditorialRun, EditorialRunQuery, EditorialSelection } from '@/api/heron/editorial/types';
 import { listEditorialRuns } from '@/api/heron/editorial';
+import type { InsightDimension, MetricReference } from '@/api/heron/metrics';
+import { getMetricReference } from '@/api/heron/metrics';
 import { useLoading } from '@/hooks/async/useLoading';
 import { useSearchToggle } from '@/hooks/form/useSearchToggle';
+import { extractErrorMessage } from '@/utils/request';
 
 const runs = ref<EditorialRun[]>([]);
 const total = ref(0);
@@ -271,6 +351,77 @@ const poolGroups = computed(() => {
     { key: 'recent', label: '最近发过的', items: p.recentPublications || [] }
   ];
 });
+
+/**
+ * 参考卡按这次选择里能直接读到的维度取历史表现。
+ * 故事角度与模板 id 前端拿得到；栏目要到 Java 侧映射才知道，所以这里只用这两个维度，
+ * 拿不到就不请求，不拿别的维度的结论凑数。
+ */
+const referenceQuery = computed<{ dimension: InsightDimension; bucketValue: string } | null>(() => {
+  const current = selection.value;
+  const angle = current?.storyAngle?.trim();
+  if (angle) return { dimension: 'angle', bucketValue: angle };
+  const template = current?.templateId?.trim();
+  if (template) return { dimension: 'template', bucketValue: template };
+  return null;
+});
+
+const referenceDimensionLabel = computed(() => {
+  const key = referenceQuery.value?.dimension;
+  if (key === 'angle') return '叙事角度';
+  if (key === 'template') return '模板';
+  return '分组';
+});
+
+const reference = ref<MetricReference | null>(null);
+const referenceLoading = ref(false);
+const referenceError = ref('');
+let referenceRequest = 0;
+
+/**
+ * 取参考卡。接口还没上线（404）或取不到时降级成一句话，
+ * 不能让整页报错堆栈，也不能白屏——这张卡只是给人参考的。
+ */
+const loadReference = async () => {
+  const query = referenceQuery.value;
+  const request = ++referenceRequest;
+  reference.value = null;
+  referenceError.value = '';
+  if (!query) return;
+  referenceLoading.value = true;
+  try {
+    const res = await getMetricReference(query.dimension, query.bucketValue);
+    const data = res.data as MetricReference | undefined;
+    if (request !== referenceRequest) return;
+    reference.value = data ? { ...data, buckets: data.buckets ?? [] } : null;
+  } catch (error) {
+    if (request !== referenceRequest) return;
+    reference.value = null;
+    referenceError.value = (await extractErrorMessage(error)) || '后端还没有提供参考卡接口。';
+  } finally {
+    if (request === referenceRequest) referenceLoading.value = false;
+  }
+};
+
+watch(
+  referenceQuery,
+  () => {
+    void loadReference();
+  },
+  { immediate: true }
+);
+
+/** 聚合值为空就是没有，不能拿 0 顶替。 */
+const referenceNumber = (value?: number | null) =>
+  value === null || value === undefined ? '无数据' : Math.round(value).toLocaleString('zh-CN');
+
+const referenceRatio = (value?: number | null) =>
+  value === null || value === undefined ? '无数据' : `×${value.toFixed(1)}`;
+
+const referenceRange = (low?: number | null, high?: number | null) => {
+  if ((low === null || low === undefined) && (high === null || high === undefined)) return '无数据';
+  return `${referenceNumber(low)} – ${referenceNumber(high)}`;
+};
 
 const getList = async () => {
   await withLoading(async () => {

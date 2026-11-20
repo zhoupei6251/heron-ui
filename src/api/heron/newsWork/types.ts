@@ -40,6 +40,27 @@ export interface NewsWorkQuery extends PageQuery {
   candidateId?: string;
 }
 
+/**
+ * AI 审稿记录，形状与后端 EditorialReviewer.Verdict#toRecord 一致。
+ * 后端 editorialReview 字段就是这个 JSON 的字符串形式。
+ */
+export interface NewsEditorialReview {
+  schemaVersion?: string;
+  result?: 'PASS' | 'FAIL' | string;
+  /** 核心断言能否被证据支持；解说线才有，数据看板线的事实由 Java 给。 */
+  coreFacts?: 'supported' | 'unverifiable' | 'unsupported' | string;
+  issues?: {
+    severity?: 'BLOCKER' | 'MAJOR' | 'MINOR' | string;
+    segmentId?: string;
+    description?: string;
+    suggestion?: string;
+  }[];
+  minorSuggestions?: string[];
+  repairAttempts?: number;
+  promptVersion?: string;
+  reviewedAt?: string;
+}
+
 export interface NewsVideoVersion {
   versionId: string;
   workId: string;
@@ -48,6 +69,17 @@ export interface NewsVideoVersion {
   taskId?: string;
   script?: string;
   checks?: string;
+  /** AI 审稿结论；自动发布只认这里的 PASS，null 表示没审过。 */
+  editorialReview?: string;
+  /**
+   * 成片级质量审稿报告（L3）的 JSON 字符串，结构见 quality-review/1。
+   * 为空表示这条片子没做过 L3 审稿——它不是闸，缺失不阻塞任何流程。
+   */
+  qualityReport?: string;
+  /** 内容属性补充（标题钩子类型、开头结构）的 JSON 字符串；取不到就是没有。 */
+  contentProfile?: string;
+  /** 冻结输入快照；列表接口不下发（一条含整篇正文），单版本详情才有。 */
+  inputSnapshot?: string;
   durationMs?: number;
   reviewStatus: NewsReviewStatus;
   reviewBy?: string | number;

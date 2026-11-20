@@ -185,6 +185,7 @@
                   <el-tag :type="row.passed ? 'success' : 'danger'" size="small">{{ row.passed ? '通过' : '未通过' }}</el-tag>
                 </template>
               </el-table-column>
+              <el-table-column label="实测值" prop="measuredText" min-width="220" show-overflow-tooltip />
               <el-table-column label="说明与定位" prop="detail" min-width="240" show-overflow-tooltip />
             </el-table>
             <p v-else class="muted">未选版本。</p>
@@ -305,6 +306,261 @@
             </p>
             <p v-else class="muted">还没有表现数据。</p>
           </section>
+        <section v-if="selected" class="col-block">
+            <h3 class="block-title">
+              09 内容质量报告
+              <span class="block-hint">v{{ selected.versionNo }}</span>
+            </h3>
+
+            <div class="report-group">
+              <h4 class="report-title">内容质量审查结论</h4>
+              <template v-if="reviewReport.available">
+                <dl class="kv kv--wide">
+                  <dt>审稿结论</dt>
+                  <dd>
+                    <el-tag size="small" effect="plain" :type="reviewReport.passed ? 'success' : 'danger'">
+                      {{ reviewReport.result }}
+                    </el-tag>
+                    <span v-if="reviewReport.repairAttempts" class="muted">修了 {{ reviewReport.repairAttempts }} 轮</span>
+                  </dd>
+                  <dt>核心断言</dt>
+                  <dd>
+                    <el-tag v-if="reviewReport.coreFacts" size="small" effect="plain"
+                      :type="reviewReport.coreFacts === 'supported' ? 'success' : 'danger'">
+                      {{ reviewReport.coreFactsLabel }}
+                    </el-tag>
+                    <span v-else class="muted">未记录（旧审稿契约，自动发布会拒）</span>
+                  </dd>
+                  <dt>审稿版本</dt>
+                  <dd class="mono">{{ reviewReport.promptVersion }}</dd>
+                  <dt>审于</dt>
+                  <dd>{{ timeText(reviewReport.reviewedAt) }}</dd>
+                </dl>
+                <ul v-if="reviewReport.issues.length" class="issue-list">
+                  <li v-for="(issue, index) in reviewReport.issues" :key="index" class="issue">
+                    <span :class="['issue-severity', 'is-' + (issue.severity || '').toLowerCase()]">
+                      {{ issue.severity || '-' }}
+                    </span>
+                    <span class="issue-segment">{{ issue.segmentId || '-' }}</span>
+                    <span class="issue-text">
+                      {{ issue.description || '-' }}
+                      <span v-if="issue.suggestion" class="issue-suggestion">建议：{{ issue.suggestion }}</span>
+                    </span>
+                  </li>
+                </ul>
+                <p v-else class="muted">没有问题条目。</p>
+                <ul v-if="reviewReport.minorSuggestions.length" class="minor-list">
+                  <li v-for="(item, index) in reviewReport.minorSuggestions" :key="index">{{ item }}</li>
+                </ul>
+              </template>
+              <el-alert
+                v-else
+                type="warning"
+                :closable="false"
+                show-icon
+                title="后端未提供 AI 审稿记录"
+                description="这一版没有落盘的审稿结论，自动发布门禁会直接拒掉它——没有记录就无法证明审稿发生过。"
+              />
+            </div>
+
+            <div class="report-group">
+              <h4 class="report-title">成片级质量审稿（L3）</h4>
+              <p class="muted">
+                这一层只对成片本身下判断，每条都带依据与置信度。它不参与发布放行，也不改写任何一道客观闸。
+              </p>
+              <template v-if="qualityReport">
+                <dl class="kv kv--wide">
+                  <dt>审于</dt>
+                  <dd>{{ timeText(qualityReport.reviewedAt) }}</dd>
+                  <dt>审稿版本</dt>
+                  <dd class="mono">{{ qualityReport.promptVersion || '-' }}</dd>
+                  <dt>模型</dt>
+                  <dd class="mono">{{ qualityReport.modelId || '-' }}</dd>
+                  <dt>模式</dt>
+                  <dd>{{ qualityModeText[qualityReport.mode || ''] || qualityReport.mode || '-' }}</dd>
+                </dl>
+
+                <div class="quality-counts">
+                  <span class="count-label">分类计数</span>
+                  <el-tag type="success" size="small" effect="plain">通过 {{ qualityCounts.pass }}</el-tag>
+                  <el-tag type="warning" size="small" effect="plain">轻微问题 {{ qualityCounts.minor }}</el-tag>
+                  <el-tag type="danger" size="small" effect="plain">未通过 {{ qualityCounts.fail }}</el-tag>
+                  <el-tag type="info" size="small" effect="plain">证据不足 {{ qualityCounts.unknown }}</el-tag>
+                </div>
+                <p class="muted">
+                  客观未通过 {{ qualityCounts.objectiveFail }} · 模型主观未通过 {{ qualityCounts.subjectiveFail }} ·
+                  模型推测未通过 {{ qualityCounts.hypothesisFail }}。这里只有分类计数，不合成总分。
+                </p>
+                <p v-if="!qualitySummaryConsistent" class="quality-mismatch">
+                  这份报告落库的分类计数与判据条目对不上（报告写：通过 {{ qualityReport.summary.pass }} / 轻微
+                  {{ qualityReport.summary.minor }} / 未通过 {{ qualityReport.summary.fail }} / 证据不足
+                  {{ qualityReport.summary.unknown }}），上面按条目显示。
+                </p>
+
+                <section v-for="group in qualityGroups" :key="group.key" class="quality-class">
+                  <div class="quality-class-head">
+                    <h5 class="quality-class-title">{{ group.label }}</h5>
+                    <el-tag size="small" effect="plain">{{ group.items.length }} 条</el-tag>
+                  </div>
+                  <p class="quality-class-note">{{ group.note }}</p>
+                  <ul v-if="group.items.length" class="criterion-list">
+                    <li v-for="item in group.items" :key="item.id" class="criterion">
+                      <div class="criterion-head">
+                        <span class="criterion-name">{{ item.label }}</span>
+                        <span class="criterion-id mono">{{ item.id }}</span>
+                        <el-tag :type="verdictTagType(item.verdict)" size="small" effect="plain">
+                          {{ verdictText[item.verdict] }}
+                        </el-tag>
+                        <el-tag v-if="item.verdict === 'unknown'" type="info" size="small" effect="dark">证据不足</el-tag>
+                        <el-tag type="info" size="small" effect="plain">{{ classText[item.class] }}</el-tag>
+                        <el-tag type="info" size="small" effect="plain">置信度 {{ confidenceText[item.confidence] }}</el-tag>
+                        <el-tag type="info" size="small" effect="plain">严重度 {{ severityText[item.severity] }}</el-tag>
+                        <el-tag type="info" size="small" effect="plain">
+                          {{ item.repairable ? '可定向修复' : '不可定向修复' }}
+                        </el-tag>
+                        <el-tag type="info" size="small" effect="plain">
+                          {{ item.machineVerifiable ? '机器可复核' : '需人工复核' }}
+                        </el-tag>
+                      </div>
+                      <p class="criterion-reason">{{ item.reason || '报告没有写明理由。' }}</p>
+                      <ul v-if="item.evidence.length" class="evidence-list">
+                        <li v-for="(evidence, index) in item.evidence" :key="index" class="evidence">
+                          <span class="evidence-locator mono">{{ evidence.locator }}</span>
+                          <span class="evidence-quote">{{ evidence.quote }}</span>
+                        </li>
+                      </ul>
+                    </li>
+                  </ul>
+                  <p v-else class="muted">这一类没有条目。</p>
+                </section>
+
+                <dl class="kv kv--wide quality-extra">
+                  <dt>定向修复</dt>
+                  <dd>
+                    已尝试 {{ qualityReport.repair.attempted }} / 上限 {{ qualityReport.repair.max }} 次 ·
+                    修复后重跑技术检查：{{ qualityReport.repair.rechecked ? '是' : '否' }}
+                  </dd>
+                  <dt>改动段落</dt>
+                  <dd>
+                    {{ qualityReport.repair.changedSegments.length ? qualityReport.repair.changedSegments.join('、') : '无' }}
+                  </dd>
+                  <dt>画面证据</dt>
+                  <dd>
+                    {{ qualityReport.screenshot.level || '未记录' }}
+                    <span v-if="qualityReport.screenshot.frames" class="muted">
+                      （{{ qualityReport.screenshot.frames }} 帧）
+                    </span>
+                    <span v-if="qualityReport.screenshot.extraBrowserRender" class="muted">· 额外走了浏览器重渲染</span>
+                  </dd>
+                  <dt>证据说明</dt>
+                  <dd>{{ qualityReport.screenshot.reason || '未记录' }}</dd>
+                </dl>
+
+                <div v-if="qualityReport.notes.length" class="quality-notes">
+                  <span class="count-label">报告备注</span>
+                  <ul class="quality-note-list">
+                    <li v-for="(note, index) in qualityReport.notes" :key="index">{{ note }}</li>
+                  </ul>
+                </div>
+              </template>
+              <p v-else class="muted">本条未做质量审稿。</p>
+            </div>
+
+            <div class="report-group">
+              <h4 class="report-title">核心结论与事实引用</h4>
+              <template v-if="scriptReport.available">
+                <dl class="kv kv--wide">
+                  <dt>标题</dt>
+                  <dd>{{ scriptReport.title }}</dd>
+                  <dt>结尾</dt>
+                  <dd>{{ scriptReport.closing }}</dd>
+                  <dt>出处</dt>
+                  <dd class="mono">{{ scriptReport.source }}</dd>
+                  <dt>出处名</dt>
+                  <dd>{{ scriptReport.sourceName }}</dd>
+                </dl>
+                <el-table :data="scriptReport.scenes" size="small" border>
+                  <el-table-column label="段落" prop="label" width="76" />
+                  <el-table-column label="时长" width="78" align="center">
+                    <template #default="{ row }">{{ row.durationS ? `${row.durationS} 秒` : '-' }}</template>
+                  </el-table-column>
+                  <el-table-column label="口播" min-width="220">
+                    <template #default="{ row }">
+                      <span class="script-lead">{{ row.lead }}</span>
+                      <span class="script-body">{{ row.body }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="引用事实" min-width="140">
+                    <template #default="{ row }">
+                      <span v-for="ref in row.facts" :key="ref" class="fact-ref mono">{{ ref }}</span>
+                      <span v-if="!row.facts.length" class="muted">无</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="画面" min-width="120">
+                    <template #default="{ row }">
+                      <template v-if="row.sceneType">
+                        <el-tag size="small" effect="plain">{{ row.sceneType }}</el-tag>
+                        <span v-if="row.visualLayout" class="visual-note mono">{{ row.visualLayout }}</span>
+                      </template>
+                      <span v-else class="muted">本稿没有画面字段</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <p class="muted">事实引用目前是稿件里的占位符路径；「这句话引用了哪个数的多少」后端未提供该字段。</p>
+              </template>
+              <el-alert
+                v-else
+                type="info"
+                :closable="false"
+                show-icon
+                title="后端未提供稿件正文"
+                description="这一版没有落盘的稿件正文，无法展示核心结论与事实引用。"
+              />
+            </div>
+
+            <div class="report-group">
+              <h4 class="report-title">技术质量检查结果</h4>
+              <ul v-if="checkRows.length" class="gate-list">
+                <li v-for="row in checkRows" :key="row.gate" class="gate-row">
+                  <span class="gate-name mono">{{ row.gate }}</span>
+                  <el-tag :type="row.passed ? 'success' : 'danger'" size="small" effect="plain">
+                    {{ row.passed ? '通过' : '未通过' }}
+                  </el-tag>
+                  <span class="gate-measured mono">{{ row.measuredText || '无实测值' }}</span>
+                </li>
+              </ul>
+              <p v-else class="muted">这一版没有可解析的门禁记录。</p>
+              <p class="muted">门禁明细表见上方「05 生成门禁」。</p>
+            </div>
+
+            <div class="report-group">
+              <h4 class="report-title">字幕时间轴</h4>
+              <el-table v-if="reviewSegments.length" :data="reviewSegments" size="small" border>
+                <el-table-column label="段落" prop="label" width="76" />
+                <el-table-column label="起止" width="160">
+                  <template #default="{ row }">{{ timelineTime(row.startMs) }} — {{ timelineTime(row.endMs) }}</template>
+                </el-table-column>
+                <el-table-column label="口播字幕" min-width="240">
+                  <template #default="{ row }">{{ row.text || '本段没有完整落在段内的字幕' }}</template>
+                </el-table-column>
+              </el-table>
+              <p v-else class="muted">这一版没有实测分段时间，后端未记录字幕与分镜的对齐结果。</p>
+            </div>
+
+            <div class="report-group">
+              <h4 class="report-title">尚未接入的报告项</h4>
+              <p class="muted">下面这些报告项后端本轮没有返回字段，这里只标注缺口，不填任何假内容。</p>
+              <el-table :data="PENDING_REPORT_FIELDS" size="small" border>
+                <el-table-column label="报告项" prop="label" width="230" />
+                <el-table-column label="状态" width="150">
+                  <template #default>
+                    <el-tag type="info" size="small" effect="plain">后端未提供该字段</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="说明" prop="note" min-width="260" />
+              </el-table>
+            </div>
+          </section>
         </main>
 
         <!-- 右栏：创作设置 -->
@@ -423,6 +679,25 @@ import { utcText } from '../../heron-time';
 import { isProductionActive, productionStatusTag, productionStatusText } from '../../production/task-state';
 import { reviewTimeline, timelineTime } from './review-timeline';
 import type { ReviewSegment } from './review-timeline';
+import {
+  PENDING_REPORT_FIELDS,
+  QUALITY_CLASS_META,
+  measuredText,
+  parseEditorialReview,
+  parseQualityGates,
+  parseQualityReport,
+  parseScriptReport,
+  qualitySummary,
+  sortQualityCriteria,
+  summaryConsistent
+} from './quality-report';
+import type {
+  QualityConfidence,
+  QualityCriterionClass,
+  QualityReport,
+  QualitySeverity,
+  QualityVerdict
+} from './quality-report';
 import PublishAttemptReview from '../PublishAttemptReview.vue';
 import { confirmationMessage, publicationState, publishSourceText } from '../publish-state';
 
@@ -432,6 +707,30 @@ const reviewTag: Record<string, 'info' | 'success' | 'danger'> = {
   approved: 'success',
   rejected: 'danger'
 };
+/** 核心断言的证据状态：核得住 / 核不了 / 没依据。只有第一种能自动发布。 */
+const coreFactsText: Record<string, string> = {
+  supported: '有据',
+  unverifiable: '核不了',
+  unsupported: '无据'
+};
+
+/** 判定结果的中文说法。unknown 是「证据不足」，不等于通过。 */
+const verdictText: Record<QualityVerdict, string> = {
+  pass: '通过',
+  minor: '轻微问题',
+  fail: '未通过',
+  unknown: '证据不足'
+};
+/** 三类结论的简称标签；页面按 class 分区展示，每个条目仍标出自己的类。 */
+const classText: Record<QualityCriterionClass, string> = {
+  objective: '客观',
+  subjective: '模型主观',
+  hypothesis: '模型推测'
+};
+const confidenceText: Record<QualityConfidence, string> = { high: '高', medium: '中', low: '低' };
+const severityText: Record<QualitySeverity, string> = { none: '无', minor: '轻微', major: '严重', blocker: '阻断' };
+/** 审稿模式：final 是成片终审，draft / sample 是人工发起的补充评审。 */
+const qualityModeText: Record<string, string> = { final: '成片终审', draft: '草稿', sample: '抽样' };
 
 const route = useRoute();
 const router = useRouter();
@@ -559,20 +858,85 @@ const reviewRules: Record<string, any> = {
 const contactSha = computed(() => artifact('contact_sheet')?.sha256 || '');
 const videoSha = computed(() => artifact('mp4')?.sha256 || '');
 
-const checkRows = computed(() => {
-  if (!selected.value?.checks) return [];
-  try {
-    const parsed: unknown = JSON.parse(selected.value.checks);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((item: any) => ({
-      gate: String(item.gate ?? '-'),
-      passed: Boolean(item.passed),
-      detail: [item.reason, item.inputLocator].filter(Boolean).join(' · ')
-    }));
-  } catch {
-    return [];
-  }
+const checkRows = computed(() =>
+  parseQualityGates(selected.value?.checks).map(gate => ({
+    gate: gate.gate,
+    passed: gate.passed,
+    measured: gate.measured,
+    measuredText: measuredText(gate.measured),
+    detail: [gate.reason, gate.inputLocator].filter(Boolean).join(' · ')
+  }))
+);
+
+/**
+ * AI 审稿结论与待修问题。后端 editorialReview 就是这份 JSON 的字符串形式，
+ * 解析不出来就当没有记录，不拿别处的结论顶替。
+ */
+const reviewReport = computed(() => {
+  const review = parseEditorialReview(selected.value?.editorialReview);
+  return {
+    available: Boolean(review),
+    result: review?.result ?? '-',
+    passed: review?.result === 'PASS',
+    coreFacts: review?.coreFacts ?? '',
+    coreFactsLabel: review?.coreFacts ? (coreFactsText[review.coreFacts] ?? review.coreFacts) : '',
+    promptVersion: review?.promptVersion ?? '-',
+    reviewedAt: review?.reviewedAt ?? '',
+    repairAttempts: review?.repairAttempts ?? 0,
+    issues: review?.issues ?? [],
+    minorSuggestions: review?.minorSuggestions ?? []
+  };
 });
+
+/** 成片实际用的稿件：标题、结尾、出处、逐段口播与引用的事实占位符。 */
+const scriptReport = computed(() => {
+  const report = parseScriptReport(selected.value?.script);
+  return {
+    available: Boolean(report),
+    title: report?.title ?? '-',
+    closing: report?.closing ?? '-',
+    source: report?.sourceUrl ?? report?.sourceKey ?? '-',
+    sourceName: report?.sourceName ?? '-',
+    scenes: report?.scenes ?? [],
+    facts: report?.facts ?? []
+  };
+});
+
+/**
+ * 成片级质量审稿报告（L3）。后端 quality_report 就是这份 JSON 的字符串形式，
+ * 解析不出来就当没做过审稿——它不是闸，缺失不阻塞任何流程。
+ */
+const qualityReport = computed<QualityReport | null>(() => parseQualityReport(selected.value?.qualityReport));
+
+/** 分类计数按判据条目重算，保证页面上看到的数字和看到的条目永远对得上。 */
+const qualityCounts = computed(() => qualitySummary(qualityReport.value?.criteria ?? []));
+
+/** 报告落库的计数与条目对不上时为 false：这条记录异常，页面要如实标出来。 */
+const qualitySummaryConsistent = computed(() => {
+  const report = qualityReport.value;
+  return report ? summaryConsistent(report) : true;
+});
+
+/**
+ * 三类结论各占一区，互不混排：客观的、主观的、推测的不能放进同一个列表排序，
+ * 否则读者分不清哪些是算出来的、哪些是模型说的。
+ */
+const qualityGroups = computed(() =>
+  QUALITY_CLASS_META.map(meta => ({
+    key: meta.key,
+    label: meta.label,
+    note: meta.note,
+    items: sortQualityCriteria((qualityReport.value?.criteria ?? []).filter(item => item.class === meta.key))
+  }))
+);
+
+/** 判定结果的标签色：通过绿、轻微黄、未通过红、证据不足灰蓝。 */
+const verdictTagType = (verdict: QualityVerdict): 'success' | 'warning' | 'danger' | 'info' => {
+  if (verdict === 'pass') return 'success';
+  if (verdict === 'minor') return 'warning';
+  if (verdict === 'fail') return 'danger';
+  return 'info';
+};
 
 const capabilityReasons = computed(() => {
   const news = capabilities.value?.news;
@@ -647,14 +1011,31 @@ const loadVersions = async () => {
   }
 };
 
-const selectVersion = (row?: NewsVideoVersion) => {
-  versionRequest++;
+/**
+ * 列表接口不下发稿件正文与冻结快照（一条正文几百 KB），单版本详情才带。
+ * 质量报告要读稿件，所以选版本时补一次详情，把两个接口的返回对齐到同一份数据。
+ */
+const loadVersionDetail = async (versionId: string, request: number) => {
+  const workId = work.value?.workId;
+  if (!workId) return;
+  try {
+    const res = await getNewsVersion(workId, versionId);
+    if (request !== versionRequest || selected.value?.versionId !== versionId) return;
+    selected.value = { ...selected.value, ...res.data };
+  } catch {
+    // 详情读不到就保留列表里的字段，质量报告据此标注缺失，不伪造内容。
+  }
+};
+
+const selectVersion = (row?: NewsVideoVersion, loaded?: NewsVideoVersion) => {
+  const request = ++versionRequest;
   releasePreview();
   fingerprintsConfirmed.value = false;
   reviewForm.value = { decision: 'approved', contactSha256: '', videoSha256: '', reason: '' };
-  selected.value = row;
+  selected.value = !row ? undefined : loaded ? { ...row, ...loaded } : row;
   void loadReviewSubtitles();
   void loadMetrics(row?.versionId);
+  if (row && !loaded) void loadVersionDetail(row.versionId, request);
 };
 
 const selectRequestedVersion = async () => {
@@ -664,7 +1045,7 @@ const selectRequestedVersion = async () => {
   const request = ++versionRequest;
   try {
     const result = await getNewsVersion(workId, versionId);
-    if (request === versionRequest && work.value?.workId === workId) selectVersion(result.data);
+    if (request === versionRequest && work.value?.workId === workId) selectVersion(result.data, result.data);
   } catch {
     if (request === versionRequest) modal.msgWarning('指定版本读取失败，请从版本历史选择。');
   }
@@ -672,7 +1053,7 @@ const selectRequestedVersion = async () => {
 
 const handlePublishUpdated = async (row: NewsVideoVersion) => {
   if (work.value?.workId !== row.workId) return;
-  if (selected.value?.versionId === row.versionId) selectVersion(row);
+  if (selected.value?.versionId === row.versionId) selectVersion(row, row);
   try {
     const [, refreshed] = await Promise.all([loadVersions(), getNewsWork(row.workId)]);
     if (work.value?.workId === row.workId) work.value = refreshed.data;
@@ -1032,6 +1413,264 @@ watch(() => route.query.versionId, () => { if (!loading.value) void selectReques
 .mono {
   font-family: var(--app-font-mono);
   font-size: var(--app-font-size-2xs);
+}
+
+/* 质量报告里的键值对标签更长、内容要能换行，不能沿用 64px 单行省略。 */
+.kv.kv--wide {
+  grid-template-columns: 84px 1fr;
+
+  dd {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+.report-group {
+  margin-top: 14px;
+
+  &:first-of-type {
+    margin-top: 0;
+  }
+}
+
+.report-title {
+  margin: 0 0 8px;
+  color: var(--app-text-title);
+  font-size: var(--app-font-size-xs);
+  font-weight: 600;
+}
+
+.issue-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--app-surface-border);
+}
+
+.issue {
+  display: grid;
+  grid-template-columns: 62px 92px 1fr;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--app-surface-border);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.6;
+}
+
+.issue-severity {
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+  letter-spacing: 0.04em;
+  color: var(--app-text-faint);
+
+  &.is-blocker,
+  &.is-major {
+    color: var(--app-danger);
+  }
+
+  &.is-minor {
+    color: var(--app-warning);
+  }
+}
+
+.issue-segment {
+  font-family: var(--app-font-mono);
+  color: var(--app-text-faint);
+  word-break: break-all;
+}
+
+.issue-text {
+  color: var(--app-text-body);
+}
+
+.issue-suggestion {
+  display: block;
+  color: var(--app-text-faint);
+}
+
+.minor-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.7;
+}
+
+.gate-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gate-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--app-font-size-xs);
+}
+
+.gate-name {
+  width: 120px;
+  flex-shrink: 0;
+  color: var(--app-text-title);
+}
+
+.gate-measured {
+  color: var(--app-text-muted);
+}
+
+.script-lead {
+  display: block;
+  color: var(--app-text-title);
+}
+
+.script-body {
+  display: block;
+  color: var(--app-text-body);
+}
+
+.fact-ref {
+  display: block;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-2xs);
+}
+
+.visual-note {
+  margin-left: 6px;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-2xs);
+}
+
+/* 成片级质量审稿：三类结论分区展示，证据片段原样保留换行。 */
+.quality-counts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+}
+
+.count-label {
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-2xs);
+}
+
+.quality-mismatch {
+  margin: 8px 0 0;
+  color: var(--app-warning);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.7;
+}
+
+.quality-class {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-surface-border);
+}
+
+.quality-class-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quality-class-title {
+  margin: 0;
+  color: var(--app-text-title);
+  font-size: var(--app-font-size-xs);
+  font-weight: 600;
+}
+
+.quality-class-note {
+  margin: 4px 0 0;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-2xs);
+  line-height: 1.7;
+}
+
+.criterion-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.criterion {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--app-surface-border);
+}
+
+.criterion-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.criterion-name {
+  color: var(--app-text-title);
+  font-size: var(--app-font-size-xs);
+  font-weight: 600;
+}
+
+.criterion-id {
+  color: var(--app-text-faint);
+}
+
+.criterion-reason {
+  margin: 6px 0 0;
+  color: var(--app-text-body);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.7;
+}
+
+.evidence-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evidence {
+  margin-bottom: 4px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--app-accent-border);
+  background: var(--app-accent-softer);
+}
+
+.evidence-locator {
+  display: block;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-2xs);
+}
+
+.evidence-quote {
+  display: block;
+  margin-top: 2px;
+  color: var(--app-text-body);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.7;
+  /* 证据是原文片段，换行要原样留着，不能压成一行 */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quality-extra {
+  margin-top: 14px;
+}
+
+.quality-notes {
+  margin-top: 12px;
+}
+
+.quality-note-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.8;
 }
 
 .row-actions {
