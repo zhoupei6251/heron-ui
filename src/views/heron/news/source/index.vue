@@ -38,6 +38,9 @@
             <p>来源能否出网由部署白名单与地址策略在采集时裁决，未登记的域名不会发起请求。</p>
           </div>
           <div class="toolbar-actions">
+            <el-button v-hasPermi="['heron:newsSource:add']" type="primary" plain icon="Grid" @click="openPlatformDialog">
+              NewsNow 平台
+            </el-button>
             <el-button v-hasPermi="['heron:newsSource:add']" type="primary" plain icon="Plus" @click="handleAdd">
               新增
             </el-button>
@@ -121,8 +124,17 @@
           </el-select>
         </el-form-item>
         <el-form-item label="来源地址" prop="url">
-          <el-input v-model="form.url" placeholder="https://example.test/feed" />
-          <div class="form-tip">只允许 http/https、默认端口、无用户名口令；保存时会归一为 ASCII 域名。</div>
+          <el-input v-model="form.url" :placeholder="urlPlaceholder" />
+          <div class="form-tip">
+            <template v-if="form.sourceType === 'newsnow'">
+              NewsNow 来源通常从「NewsNow 平台」目录批量启用；手工添加时地址形如
+              https://newsnow.busiyi.world/api/s?id=zhihu。
+            </template>
+            <template v-else-if="sourceTypeHint[form.sourceType]">
+              直连热榜按固定入口采集，地址需与占位提示一致；域名必须在部署白名单内，返回 HTML 会按风控归因。
+            </template>
+            <template v-else>只允许 http/https、默认端口、无用户名口令；保存时会归一为 ASCII 域名。</template>
+          </div>
         </el-form-item>
         <el-form-item label="采集周期" prop="intervalSeconds">
           <el-input-number v-model="form.intervalSeconds" :min="60" :step="60" controls-position="right" />
@@ -149,16 +161,53 @@
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="platformDialog.visible" title="NewsNow 平台目录" width="640px" append-to-body>
+      <p class="form-tip mb-3">
+        勾选后按部署基址批量建来源，默认启用、不允许自动产出；已启用的平台不可重复勾选。切自托管只需改后端
+        newsnow-base-url。
+      </p>
+      <div v-loading="platformDialog.loading" class="platform-list">
+        <el-checkbox-group v-model="platformDialog.selected">
+          <el-checkbox
+            v-for="platform in platformDialog.platforms"
+            :key="platform.platformId"
+            :value="platform.platformId"
+            :disabled="platform.enabled"
+            class="platform-item"
+          >
+            <span>{{ platform.name }}</span>
+            <span class="platform-id">{{ platform.platformId }}</span>
+            <el-tag v-if="platform.enabled" size="small" type="info">已启用</el-tag>
+          </el-checkbox>
+        </el-checkbox-group>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button
+            :loading="platformDialog.saving"
+            type="primary"
+            :disabled="!platformDialog.selected.length"
+            @click="handleEnablePlatforms"
+          >
+            启用选中
+          </el-button>
+          <el-button @click="platformDialog.visible = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="HeronNewsSource" lang="ts">
-import type { NewsSource, NewsSourceForm, NewsSourceQuery } from '@/api/heron/newsSource/types';
+import type { NewsNowPlatform, NewsSource, NewsSourceForm, NewsSourceQuery } from '@/api/heron/newsSource/types';
 import {
   addNewsSource,
   delNewsSource,
+  enableNewsNowPlatforms,
   fetchNewsSource,
   getNewsSource,
+  listNewsNowPlatforms,
   listNewsSource,
   updateNewsSource
 } from '@/api/heron/newsSource';
@@ -169,13 +218,43 @@ import { useSearchToggle } from '@/hooks/form/useSearchToggle';
 import modal from '@/plugins/modal';
 import { utcText } from '../../heron-time';
 
-const sourceTypeText: Record<string, string> = { rss: 'RSS', atom: 'Atom', text: '文本' };
+const sourceTypeText: Record<string, string> = {
+  rss: 'RSS',
+  atom: 'Atom',
+  text: '文本',
+  weibo: '微博热搜',
+  baidu: '百度热搜',
+  toutiao: '头条热榜',
+  bilibili: 'B站热搜',
+  thepaper: '澎湃热榜',
+  zhihu: '知乎热榜',
+  newsnow: 'NewsNow 热榜'
+};
+
+/** 直连热榜的固定入口，仅用于表单提示；实际采集地址以来源记录为准。 */
+const sourceTypeHint: Record<string, string> = {
+  weibo: 'https://weibo.com/ajax/side/hotSearch',
+  baidu: 'https://top.baidu.com/board?tab=realtime',
+  toutiao: 'https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc',
+  bilibili: 'https://api.bilibili.com/x/web-interface/search/square?limit=50',
+  thepaper: 'https://cache.thepaper.cn/contentapi/wwwIndex/rightSidebar',
+  zhihu: 'https://api.zhihu.com/topstory/hot-list',
+  newsnow: 'https://newsnow.busiyi.world/api/s?id=zhihu'
+};
 
 const sources = ref<NewsSource[]>([]);
 const total = ref(0);
 const buttonLoading = ref(false);
 const { loading, withLoading } = useLoading(true);
 const { showSearch } = useSearchToggle();
+
+const platformDialog = reactive({
+  visible: false,
+  loading: false,
+  saving: false,
+  platforms: [] as NewsNowPlatform[],
+  selected: [] as string[]
+});
 
 const queryFormRef = ref<ElFormInstance>();
 const sourceFormRef = ref<ElFormInstance>();
@@ -213,6 +292,9 @@ const data = reactive<PageData<NewsSourceForm, NewsSourceQuery>>({
   }
 });
 const { queryParams, form, rules } = toRefs(data);
+
+/** 地址占位按来源类型给出固定入口，避免手填错地址。 */
+const urlPlaceholder = computed(() => sourceTypeHint[form.value.sourceType] || 'https://example.test/feed');
 
 const {
   dialog,
@@ -262,6 +344,41 @@ const { resetQuery } = useSearchReset({
 const handleAdd = () => {
   reset();
   openDialog('添加新闻来源');
+};
+
+/** 打开 NewsNow 平台目录：地址由后端按部署基址生成 */
+const openPlatformDialog = async () => {
+  platformDialog.selected = [];
+  platformDialog.platforms = [];
+  platformDialog.visible = true;
+  platformDialog.loading = true;
+  try {
+    const res = await listNewsNowPlatforms();
+    platformDialog.platforms = res.data || [];
+  } finally {
+    platformDialog.loading = false;
+  }
+};
+
+/** 批量启用选中的平台 */
+const handleEnablePlatforms = async () => {
+  if (!platformDialog.selected.length) return;
+  try {
+    await modal.confirm(
+      `启用 ${platformDialog.selected.length} 个 NewsNow 平台？将按部署基址各建一条来源，默认启用、不允许自动产出。`
+    );
+  } catch {
+    return;
+  }
+  platformDialog.saving = true;
+  try {
+    const res = await enableNewsNowPlatforms(platformDialog.selected);
+    modal.msgSuccess(`已新建 ${res.data || 0} 条来源`);
+    platformDialog.visible = false;
+    await getList();
+  } finally {
+    platformDialog.saving = false;
+  }
 };
 
 /** 修改按钮操作 */
@@ -335,5 +452,26 @@ onMounted(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.6;
+}
+
+.platform-list {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+}
+
+.platform-list :deep(.el-checkbox) {
+  display: flex;
+  width: 100%;
+  margin-right: 0;
+  padding: 4px 0;
+}
+
+.platform-id {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 </style>

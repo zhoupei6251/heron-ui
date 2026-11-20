@@ -1,4 +1,23 @@
-export type NewsSourceType = 'rss' | 'atom' | 'text';
+/** 来源类型：前四类为通用抓取，中间五类为直连热榜，最后一类为 NewsNow 聚合。 */
+export type NewsSourceType =
+  | 'rss'
+  | 'atom'
+  | 'text'
+  | 'weibo'
+  | 'baidu'
+  | 'toutiao'
+  | 'bilibili'
+  | 'thepaper'
+  | 'zhihu'
+  | 'newsnow';
+
+/** NewsNow 平台目录项；enabled 表示同平台来源已存在。 */
+export interface NewsNowPlatform {
+  platformId: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+}
 
 export interface NewsSourceQuery extends PageQuery {
   name?: string;

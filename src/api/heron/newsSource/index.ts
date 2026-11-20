@@ -1,7 +1,7 @@
 import type { PageResult } from '@/api/types';
 import type { AxiosPromise } from '@/utils/api-types';
 import request from '@/utils/request';
-import type { NewsSource, NewsSourceForm, NewsSourceQuery } from './types';
+import type { NewsNowPlatform, NewsSource, NewsSourceForm, NewsSourceQuery } from './types';
 
 export const listNewsSource = (query: NewsSourceQuery): AxiosPromise<PageResult<NewsSource>> => {
   return request({
@@ -46,5 +46,21 @@ export const fetchNewsSource = (sourceId: string): AxiosPromise<void> => {
   return request({
     url: '/heron/newsSource/' + sourceId + '/fetch',
     method: 'post'
+  });
+};
+
+/** NewsNow 平台目录由后端按部署基址生成，前端只负责选择与批量启用。 */
+export const listNewsNowPlatforms = (): AxiosPromise<NewsNowPlatform[]> => {
+  return request({
+    url: '/heron/newsSource/newsnow/platforms',
+    method: 'get'
+  });
+};
+
+export const enableNewsNowPlatforms = (platformIds: string[]): AxiosPromise<number> => {
+  return request({
+    url: '/heron/newsSource/newsnow/enable',
+    method: 'post',
+    data: { platformIds }
   });
 };
