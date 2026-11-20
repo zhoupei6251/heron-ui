@@ -459,7 +459,9 @@
                 <div v-if="qualityReport.notes.length" class="quality-notes">
                   <span class="count-label">报告备注</span>
                   <ul class="quality-note-list">
-                    <li v-for="(note, index) in qualityReport.notes" :key="index">{{ note }}</li>
+                    <li v-for="(note, index) in qualityReport.notes" :key="index">
+                      {{ QUALITY_NOTE_LABELS[note] || note }}
+                    </li>
                   </ul>
                 </div>
               </template>
@@ -682,6 +684,7 @@ import type { ReviewSegment } from './review-timeline';
 import {
   PENDING_REPORT_FIELDS,
   QUALITY_CLASS_META,
+  QUALITY_NOTE_LABELS,
   measuredText,
   parseEditorialReview,
   parseQualityGates,

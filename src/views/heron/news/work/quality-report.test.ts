@@ -6,6 +6,7 @@ import {
   parseQualityGates,
   parseQualityReport,
   parseScriptReport,
+  QUALITY_NOTE_LABELS,
   qualitySummary,
   sortQualityCriteria,
   summaryConsistent
@@ -332,5 +333,12 @@ describe('成片级质量审稿报告的解析层', () => {
       'pacing_variation',
       'closing_value'
     ]);
+  });
+
+  it('备注码读成中文事实，不把内部码丢给人看', () => {
+    expect(QUALITY_NOTE_LABELS.audio_bgm_dropped).toContain('配乐');
+    expect(QUALITY_NOTE_LABELS.model_failed).toContain('模型');
+    // 未知码仍然原样显示，不吞掉
+    expect(QUALITY_NOTE_LABELS.some_unknown_note).toBeUndefined();
   });
 });

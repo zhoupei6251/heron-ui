@@ -324,8 +324,24 @@ export const QUALITY_CRITERION_ORDER = [
   'closing_value'
 ];
 
-/** 三类结论各自的标题与说明。三个区互不混排，各说各的。 */
-export const QUALITY_CLASS_META: { key: QualityCriterionClass; label: string; note: string }[] = [
+/**
+ * 报告备注码的中文说法。
+ *
+ * 备注是「这条片子发生了什么」的事实记号，页面读中文，不把内部码丢给人看。
+ */
+export const QUALITY_NOTE_LABELS: Record<string, string> = {
+  model_output_invalid: '模型输出不符合审稿契约，主观判断按证据不足处理',
+  model_failed: '模型本次不可用，主观判断按证据不足处理',
+  model_objective_dropped: '模型给出的客观结论已被丢弃，客观结论只由代码给出',
+  model_blocker_dropped: '模型给出的阻断级意见已被丢弃，主观意见不得升级成阻断',
+  gate_drift: '技术闸的结论与本报告依据的输入不一致',
+  focus_tautological: '画面焦点判据的证据是同义反复，不构成结论',
+  repair_rolled_back: '定向修复已回滚，原稿未被改动',
+  repair_not_rechecked: '定向修复之后没有重跑技术检查',
+  audio_bgm_dropped: '配乐因响度超标被去掉，这条片子没有背景音乐'
+};
+
+/** 三类结论各自的标题与说明。三个区互不混排，各说各的。 */export const QUALITY_CLASS_META: { key: QualityCriterionClass; label: string; note: string }[] = [
   {
     key: 'objective',
     label: '客观结论',
