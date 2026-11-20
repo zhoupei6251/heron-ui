@@ -84,6 +84,53 @@
               </section>
             </div>
 
+            <section v-if="trend.available" class="trend-block" aria-label="趋势判定">
+              <header class="trend-head">
+                <div>
+                  <h3>趋势判定</h3>
+                  <p class="trend-source">来自本版产物 trend.json（trend/1 机器判定）</p>
+                </div>
+                <el-tag v-if="trend.report" :type="trendVerdictTagType(trend.report.verdict)" size="small" effect="plain">
+                  {{ trend.report.label }}
+                </el-tag>
+              </header>
+              <p v-if="trend.loading" class="muted" role="status">正在读取 trend.json…</p>
+              <p v-else-if="trend.error" class="preview-fallback">{{ trend.error }}</p>
+              <template v-else-if="trend.report">
+                <el-alert
+                  v-if="trend.report.insufficient"
+                  type="info"
+                  :closable="false"
+                  show-icon
+                  :title="TREND_INSUFFICIENT_NOTE"
+                  description="这一版期数不够，后端不做趋势判定；此处只陈述已发生的区间变化，不给方向。"
+                />
+                <dl class="trend-kv">
+                  <template v-for="row in trendRows(trend.report)" :key="row.label">
+                    <dt>{{ row.label }}</dt>
+                    <dd>{{ row.value }}</dd>
+                  </template>
+                </dl>
+                <div v-if="trend.report.disagreements.length" class="trend-subblock">
+                  <h4>交叉核对分歧</h4>
+                  <ul>
+                    <li v-for="(item, index) in trend.report.disagreements" :key="index">{{ item }}</li>
+                  </ul>
+                </div>
+                <div v-if="trend.report.limits.length" class="trend-subblock">
+                  <h4>限制</h4>
+                  <ul>
+                    <li v-for="(limit, index) in trend.report.limits" :key="index">{{ limit }}</li>
+                  </ul>
+                </div>
+                <div v-if="trend.report.speculationBoundary" class="trend-subblock">
+                  <h4>推测边界</h4>
+                  <p>{{ trend.report.speculationBoundary }}</p>
+                </div>
+              </template>
+              <p v-else class="muted">trend.json 无法解析，产物可能损坏；这里不展示任何推断出来的内容。</p>
+            </section>
+
             <el-form class="review-form" label-width="88px">
               <el-form-item label="决议">
                 <el-radio-group v-model="form.decision">
@@ -139,6 +186,8 @@ import { useSearchToggle } from '@/hooks/form/useSearchToggle';
 import modal from '@/plugins/modal';
 import { utcText } from '../heron-time';
 import { productionStatusTag, productionStatusText } from '../production/task-state';
+import { parseTrendReport, TREND_INSUFFICIENT_NOTE, trendRows, trendVerdictTagType } from '../news/work/trend-report';
+import type { TrendReport } from '../news/work/trend-report';
 
 const queue = ref<NewsVideoVersion[]>([]);
 const total = ref(0);
@@ -153,6 +202,13 @@ const previewLabels: Record<PreviewKind, string> = { contact_sheet: '九宫格',
 const previews = reactive<Record<PreviewKind, { url: string; loading: boolean; error: string }>>({
   contact_sheet: { url: '', loading: false, error: '' },
   mp4: { url: '', loading: false, error: '' }
+});
+/** 趋势判定是 JSON，不进 img/video 预览，但仍走同一个预览通道读产物内容。 */
+const trend = reactive<{ available: boolean; loading: boolean; error: string; report: TrendReport | null }>({
+  available: false,
+  loading: false,
+  error: '',
+  report: null
 });
 const submitting = ref(false);
 const fingerprintsConfirmed = ref(false);
@@ -187,16 +243,19 @@ const getList = async () => {
 
 const selectVersion = (row?: NewsVideoVersion) => {
   releasePreview();
+  releaseTrend();
   fingerprintsConfirmed.value = false;
   form.value = { decision: 'approved', contactSha256: '', videoSha256: '', reason: '' };
   selected.value = row;
   if (row?.taskStatus === 'succeeded') {
     previewKinds.forEach(loadPreview);
+    void loadTrend();
   }
 };
 
 /** 两个 blob 都要 revoke，否则翻几十条就会漏内存。ticket 让切版本后到达的旧 blob 直接丢弃。 */
 let previewTicket = 0;
+let trendTicket = 0;
 const releasePreview = () => {
   previewTicket += 1;
   previewKinds.forEach(kind => {
@@ -233,6 +292,45 @@ const loadPreview = async (kind: PreviewKind) => {
   }
 };
 
+const releaseTrend = () => {
+  trendTicket += 1;
+  trend.available = false;
+  trend.loading = false;
+  trend.error = '';
+  trend.report = null;
+};
+
+/**
+ * 趋势判定同样受登录态保护，走 fetchNewsPreview 拿 blob 再读文本。
+ * 读不到或解析不了都如实说明，不从别处推一份判定出来。
+ */
+const loadTrend = async () => {
+  const version = selected.value;
+  const file = artifact('trend');
+  if (!version || !file) return;
+  trend.available = true;
+  if (!file.available) {
+    trend.error = '趋势判定产物标记为不可用，无法读取 trend.json。';
+    return;
+  }
+  const ticket = ++trendTicket;
+  trend.loading = true;
+  trend.error = '';
+  trend.report = null;
+  try {
+    const blob = await fetchNewsPreview(version.workId, version.versionId, file.artifactId);
+    const raw = await blob.text();
+    if (ticket !== trendTicket) return;
+    const report = parseTrendReport(raw);
+    if (report) trend.report = report;
+    else trend.error = '趋势判定解析失败：trend.json 不是 trend/1 契约或已损坏。';
+  } catch {
+    if (ticket === trendTicket) trend.error = '趋势判定加载失败，可再选一次该版本重试';
+  } finally {
+    if (ticket === trendTicket) trend.loading = false;
+  }
+};
+
 const submitReview = async () => {
   if (!selected.value) return;
   submitting.value = true;
@@ -255,7 +353,10 @@ const openStudio = () => {
   window.open(`#/heron/work-studio?workId=${selected.value.workId}`, '_blank');
 };
 
-onBeforeUnmount(releasePreview);
+onBeforeUnmount(() => {
+  releasePreview();
+  releaseTrend();
+});
 onMounted(getList);
 </script>
 
@@ -369,6 +470,76 @@ onMounted(getList);
 
 .contact-sheet {
   width: 100%;
+}
+
+.trend-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-surface-border);
+}
+
+.trend-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+
+  h3 {
+    margin: 0;
+    color: var(--app-text-title);
+    font-size: var(--app-font-size-sm);
+    font-weight: 600;
+  }
+}
+
+.trend-source {
+  margin: 4px 0 0;
+  color: var(--app-text-faint);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+}
+
+.trend-kv {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 12px 0 0;
+
+  dt {
+    color: var(--app-text-muted);
+    font-size: var(--app-font-size-xs);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--app-text-body);
+    font-size: var(--app-font-size-xs);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.trend-subblock {
+  margin-top: 12px;
+
+  h4 {
+    margin: 0 0 4px;
+    color: var(--app-text-muted);
+    font-size: var(--app-font-size-xs);
+    font-weight: 600;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  li,
+  p {
+    margin: 0 0 2px;
+    color: var(--app-text-body);
+    font-size: var(--app-font-size-xs);
+    line-height: 1.7;
+  }
 }
 
 .player {

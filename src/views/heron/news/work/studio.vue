@@ -176,6 +176,57 @@
             <p v-else class="muted">先在左边选一个版本。</p>
           </section>
 
+          <section v-if="selected && artifact('trend')" class="col-block" aria-label="趋势判定">
+            <h3 class="block-title">
+              趋势判定
+              <span class="block-hint">trend/1</span>
+              <el-tag
+                v-if="trendReport"
+                :type="trendVerdictTagType(trendReport.verdict)"
+                size="small"
+                effect="plain"
+                class="trend-tag"
+              >
+                {{ trendReport.label }}
+              </el-tag>
+            </h3>
+            <p v-if="trendLoading" class="muted" role="status">正在读取 trend.json…</p>
+            <p v-else-if="trendError" class="muted" role="status">{{ trendError }}</p>
+            <template v-else-if="trendReport">
+              <el-alert
+                v-if="trendReport.insufficient"
+                type="info"
+                :closable="false"
+                show-icon
+                :title="TREND_INSUFFICIENT_NOTE"
+                description="这一版期数不够，后端不做趋势判定；此处只陈述已发生的区间变化，不给方向。"
+              />
+              <dl class="trend-kv">
+                <template v-for="row in trendRows(trendReport)" :key="row.label">
+                  <dt>{{ row.label }}</dt>
+                  <dd>{{ row.value }}</dd>
+                </template>
+              </dl>
+              <div v-if="trendReport.disagreements.length" class="trend-subblock">
+                <h4>交叉核对分歧</h4>
+                <ul>
+                  <li v-for="(item, index) in trendReport.disagreements" :key="index">{{ item }}</li>
+                </ul>
+              </div>
+              <div v-if="trendReport.limits.length" class="trend-subblock">
+                <h4>限制</h4>
+                <ul>
+                  <li v-for="(limit, index) in trendReport.limits" :key="index">{{ limit }}</li>
+                </ul>
+              </div>
+              <div v-if="trendReport.speculationBoundary" class="trend-subblock">
+                <h4>推测边界</h4>
+                <p>{{ trendReport.speculationBoundary }}</p>
+              </div>
+            </template>
+            <p v-else class="muted">trend.json 无法解析，产物可能损坏；这里不展示任何推断出来的内容。</p>
+          </section>
+
           <section class="col-block">
             <h3 class="block-title">05 生成门禁</h3>
             <el-table v-if="selected" :data="checkRows" size="small" border>
@@ -701,6 +752,8 @@ import type {
   QualitySeverity,
   QualityVerdict
 } from './quality-report';
+import { TREND_INSUFFICIENT_NOTE, parseTrendReport, trendRows, trendVerdictTagType } from './trend-report';
+import type { TrendReport } from './trend-report';
 import PublishAttemptReview from '../PublishAttemptReview.vue';
 import { confirmationMessage, publicationState, publishSourceText } from '../publish-state';
 
@@ -832,8 +885,12 @@ const subtitleText = ref('');
 const subtitleLoading = ref(false);
 const subtitleError = ref('');
 const reviewSegments = computed(() => reviewTimeline(selected.value?.checks, subtitleText.value));
+const trendReport = ref<TrendReport | null>(null);
+const trendLoading = ref(false);
+const trendError = ref('');
 let previewRequest = 0;
 let subtitleRequest = 0;
+let trendRequest = 0;
 let pendingSeekMs: number | undefined;
 const capabilities = ref<ProductionCapabilities>();
 
@@ -1033,11 +1090,13 @@ const loadVersionDetail = async (versionId: string, request: number) => {
 const selectVersion = (row?: NewsVideoVersion, loaded?: NewsVideoVersion) => {
   const request = ++versionRequest;
   releasePreview();
+  releaseTrend();
   fingerprintsConfirmed.value = false;
   reviewForm.value = { decision: 'approved', contactSha256: '', videoSha256: '', reason: '' };
   selected.value = !row ? undefined : loaded ? { ...row, ...loaded } : row;
   void loadReviewSubtitles();
   void loadMetrics(row?.versionId);
+  void loadTrend();
   if (row && !loaded) void loadVersionDetail(row.versionId, request);
 };
 
@@ -1099,6 +1158,46 @@ const loadReviewSubtitles = async () => {
     if (request === subtitleRequest) subtitleError.value = '字幕读取失败，请播放核对口播；实测时间仍可定位。';
   } finally {
     if (request === subtitleRequest) subtitleLoading.value = false;
+  }
+};
+
+const releaseTrend = () => {
+  trendRequest++;
+  trendReport.value = null;
+  trendLoading.value = false;
+  trendError.value = '';
+};
+
+/**
+ * trend 产物是 JSON 快照，和字幕一样走预览通道读 blob 再解析；
+ * 读不到或解析不了都只说明这条产物异常，不从别处补一份判定。
+ */
+const loadTrend = async () => {
+  const request = ++trendRequest;
+  trendReport.value = null;
+  trendLoading.value = false;
+  trendError.value = '';
+  const version = selected.value;
+  const workId = work.value?.workId;
+  if (!version || !workId) return;
+  const file = version.artifacts?.find(item => item.kind === 'trend');
+  if (!file) return;
+  if (!file.available) {
+    trendError.value = '趋势判定产物标记为不可用，无法读取 trend.json。';
+    return;
+  }
+  trendLoading.value = true;
+  try {
+    const blob = await fetchNewsPreview(workId, version.versionId, file.artifactId);
+    const raw = await blob.text();
+    if (request !== trendRequest) return;
+    const report = parseTrendReport(raw);
+    if (report) trendReport.value = report;
+    else trendError.value = '趋势判定解析失败：trend.json 不是 trend/1 契约或已损坏。';
+  } catch {
+    if (request === trendRequest) trendError.value = '趋势判定读取失败，可再选一次该版本重试。';
+  } finally {
+    if (request === trendRequest) trendLoading.value = false;
   }
 };
 
@@ -1273,6 +1372,7 @@ const loadTemplates = async () => {
 const load = async () => {
   stopWatch();
   releasePreview();
+  releaseTrend();
   liveTask.value = undefined;
   requestKey = newRequestKey();
   selected.value = undefined;
@@ -1307,6 +1407,7 @@ const load = async () => {
 
 onBeforeUnmount(() => {
   subtitleRequest++;
+  releaseTrend();
   stopWatch();
   releasePreview();
 });
@@ -1926,6 +2027,54 @@ watch(() => route.query.versionId, () => { if (!loading.value) void selectReques
   align-items: center;
   gap: 8px;
   max-width: 520px;
+}
+
+.trend-tag {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.trend-kv {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 10px 0 0;
+
+  dt {
+    color: var(--app-text-muted);
+    font-size: var(--app-font-size-xs);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--app-text-body);
+    font-size: var(--app-font-size-xs);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.trend-subblock {
+  margin-top: 10px;
+
+  h4 {
+    margin: 0 0 4px;
+    color: var(--app-text-muted);
+    font-size: var(--app-font-size-xs);
+    font-weight: 600;
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  li,
+  p {
+    margin: 0 0 2px;
+    color: var(--app-text-body);
+    font-size: var(--app-font-size-xs);
+    line-height: 1.7;
+  }
 }
 
 @media (max-width: 1180px) {

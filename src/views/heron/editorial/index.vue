@@ -15,6 +15,7 @@
           <el-select v-model="queryParams.selectedLine" placeholder="全部线路" clearable class="w-[150px]" @change="handleQuery">
             <el-option label="数据看板" value="DATA_BOARD" />
             <el-option label="新闻解说" value="NEWS_EXPLAINER" />
+            <el-option label="趋势洞察" value="TREND_INSIGHT" />
             <el-option label="今天不发" value="NO_PUBLISH" />
           </el-select>
           <el-select v-model="queryParams.status" placeholder="全部状态" clearable class="w-[130px]" @change="handleQuery">
@@ -295,10 +296,17 @@ const queryParams = ref<EditorialRunQuery>({ pageNum: 1, pageSize: 20, status: u
 const lineText = (line?: string) => {
   if (line === 'DATA_BOARD') return '数据看板';
   if (line === 'NEWS_EXPLAINER') return '新闻解说';
+  if (line === 'TREND_INSIGHT') return '趋势洞察';
   if (line === 'NO_PUBLISH') return '今天不发';
   return line || '未决策';
 };
-const lineTag = (line?: string) => (line === 'DATA_BOARD' ? 'success' : line === 'NEWS_EXPLAINER' ? 'warning' : 'info');
+/** 趋势洞察用 danger，与看板的 success、新闻解说的 warning 分开，不和任何一条线撞色。 */
+const lineTag = (line?: string) => {
+  if (line === 'DATA_BOARD') return 'success';
+  if (line === 'NEWS_EXPLAINER') return 'warning';
+  if (line === 'TREND_INSIGHT') return 'danger';
+  return 'info';
+};
 const statusText = (status?: string) =>
   ({ produced: '已产出', skipped: '已跳过', failed: '失败' })[status || ''] || status || '-';
 const statusTag = (status?: string) => (status === 'produced' ? 'success' : status === 'failed' ? 'danger' : 'info');

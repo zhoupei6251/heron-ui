@@ -408,8 +408,22 @@ const handleCancel = async (row: ProductionTask) => {
 
 const tokenText = (value?: number | null) => (value === null || value === undefined ? '未知' : value);
 
+/** 产物 kind 的中文名；未登记的保持原值，方便排查。 */
+const fileKindText: Record<string, string> = {
+  mp4: '成片',
+  contact_sheet: '九宫格',
+  script: '稿件',
+  subtitles: '字幕',
+  checks: '闸报告',
+  asset_manifest: '资产清单',
+  dataset: '数据快照',
+  trend: '趋势判定'
+};
+
 const evidenceText = (evidence?: ProductionFile[]) =>
-  evidence && evidence.length ? evidence.map(file => `${file.kind}·${file.artifactId.slice(0, 8)}`).join('，') : '-';
+  evidence && evidence.length
+    ? evidence.map(file => `${fileKindText[file.kind] ?? file.kind}·${file.artifactId.slice(0, 8)}`).join('，')
+    : '-';
 
 const activate = () => {
   if (active) return;

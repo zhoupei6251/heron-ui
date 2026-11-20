@@ -107,7 +107,9 @@
         </el-table-column>
         <el-table-column :label="bucketLabel" min-width="170">
           <template #default="{ row }">
-            <span :class="['bucket-name', { 'is-unknown': row.bucket === '未记录' }]">{{ row.bucket }}</span>
+            <span :class="['bucket-name', { 'is-unknown': row.bucket === '未记录' }]">
+              {{ bucketText(dimension, row.bucket) }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column label="样本" width="86" align="center">
@@ -338,6 +340,7 @@ import type {
 } from '@/api/heron/metrics';
 import { getMetricInsight } from '@/api/heron/metrics';
 import { extractErrorMessage } from '@/utils/request';
+import { bucketText } from './buckets';
 
 const tabs: { key: InsightDimension; label: string; bucket: string }[] = [
   { key: 'template', label: '按模板', bucket: '模板' },
