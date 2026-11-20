@@ -131,6 +131,39 @@
               <p v-else class="muted">trend.json 无法解析，产物可能损坏；这里不展示任何推断出来的内容。</p>
             </section>
 
+            <section v-if="storyboard.available" class="storyboard-block" aria-label="分镜">
+              <header class="trend-head">
+                <div>
+                  <h3>分镜</h3>
+                  <p class="trend-source">来自本版产物 script.json —— 这一屏用什么画面、承担什么叙事节点、上屏写哪句话</p>
+                </div>
+                <el-tag v-if="storyboard.report" size="small" effect="plain">
+                  {{ storyboard.report.storyboardScenes }}/{{ storyboard.report.scenes.length }} 段有分镜
+                </el-tag>
+              </header>
+              <p v-if="storyboard.loading" class="muted" role="status">正在读取 script.json…</p>
+              <p v-else-if="storyboard.error" class="preview-fallback">{{ storyboard.error }}</p>
+              <template v-else-if="storyboard.report">
+                <p v-if="!storyboard.report.storyboardScenes" class="muted">
+                  这一版没有写分镜，画面沿用旧稿排版：每屏都是领句加正文。
+                </p>
+                <ol class="storyboard-list">
+                  <li v-for="scene in storyboard.report.scenes" :key="scene.index">
+                    <div class="storyboard-head">
+                      <span class="storyboard-no">{{ String(scene.index).padStart(2, '0') }}</span>
+                      <el-tag v-if="scene.beat" size="small" effect="plain">{{ scene.beatLabel }}</el-tag>
+                      <el-tag v-if="scene.sceneType" size="small" type="info" effect="plain">
+                        {{ scene.sceneTypeLabel }}
+                      </el-tag>
+                    </div>
+                    <p v-if="scene.onScreenText" class="storyboard-screen">上屏：{{ scene.onScreenText }}</p>
+                    <p v-else class="storyboard-screen muted">上屏沿用领句</p>
+                    <p class="storyboard-narration">{{ scene.lead }}</p>
+                  </li>
+                </ol>
+              </template>
+            </section>
+
             <el-form class="review-form" label-width="88px">
               <el-form-item label="决议">
                 <el-radio-group v-model="form.decision">
@@ -188,6 +221,8 @@ import { utcText } from '../heron-time';
 import { productionStatusTag, productionStatusText } from '../production/task-state';
 import { parseTrendReport, TREND_INSUFFICIENT_NOTE, trendRows, trendVerdictTagType } from '../news/work/trend-report';
 import type { TrendReport } from '../news/work/trend-report';
+import { parseStoryboard } from '../news/work/storyboard';
+import type { Storyboard } from '../news/work/storyboard';
 
 const queue = ref<NewsVideoVersion[]>([]);
 const total = ref(0);
@@ -205,6 +240,13 @@ const previews = reactive<Record<PreviewKind, { url: string; loading: boolean; e
 });
 /** 趋势判定是 JSON，不进 img/video 预览，但仍走同一个预览通道读产物内容。 */
 const trend = reactive<{ available: boolean; loading: boolean; error: string; report: TrendReport | null }>({
+  available: false,
+  loading: false,
+  error: '',
+  report: null
+});
+/** 分镜同样从 script.json 产物里读；旧稿没有分镜，页面如实说没有。 */
+const storyboard = reactive<{ available: boolean; loading: boolean; error: string; report: Storyboard | null }>({
   available: false,
   loading: false,
   error: '',
@@ -244,12 +286,14 @@ const getList = async () => {
 const selectVersion = (row?: NewsVideoVersion) => {
   releasePreview();
   releaseTrend();
+  releaseStoryboard();
   fingerprintsConfirmed.value = false;
   form.value = { decision: 'approved', contactSha256: '', videoSha256: '', reason: '' };
   selected.value = row;
   if (row?.taskStatus === 'succeeded') {
     previewKinds.forEach(loadPreview);
     void loadTrend();
+    void loadStoryboard();
   }
 };
 
@@ -331,6 +375,46 @@ const loadTrend = async () => {
   }
 };
 
+let storyboardTicket = 0;
+const releaseStoryboard = () => {
+  storyboardTicket += 1;
+  storyboard.available = false;
+  storyboard.loading = false;
+  storyboard.error = '';
+  storyboard.report = null;
+};
+
+/**
+ * 分镜走 script.json 产物，和趋势判定同一个通道：登录态保护，读 blob 再解析。
+ * 旧稿（整篇没有 beat）也照实展示，只是标出「这一版没有分镜」。
+ */
+const loadStoryboard = async () => {
+  const version = selected.value;
+  const file = artifact('script');
+  if (!version || !file) return;
+  storyboard.available = true;
+  if (!file.available) {
+    storyboard.error = '脚本产物标记为不可用，无法读取 script.json。';
+    return;
+  }
+  const ticket = ++storyboardTicket;
+  storyboard.loading = true;
+  storyboard.error = '';
+  storyboard.report = null;
+  try {
+    const blob = await fetchNewsPreview(version.workId, version.versionId, file.artifactId);
+    const raw = await blob.text();
+    if (ticket !== storyboardTicket) return;
+    const report = parseStoryboard(raw);
+    if (report) storyboard.report = report;
+    else storyboard.error = '分镜解析失败：script.json 不是脚本契约或已损坏。';
+  } catch {
+    if (ticket === storyboardTicket) storyboard.error = '分镜加载失败，可再选一次该版本重试';
+  } finally {
+    if (ticket === storyboardTicket) storyboard.loading = false;
+  }
+};
+
 const submitReview = async () => {
   if (!selected.value) return;
   submitting.value = true;
@@ -356,6 +440,7 @@ const openStudio = () => {
 onBeforeUnmount(() => {
   releasePreview();
   releaseTrend();
+  releaseStoryboard();
 });
 onMounted(getList);
 </script>
@@ -476,6 +561,53 @@ onMounted(getList);
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--app-surface-border);
+}
+
+.storyboard-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-surface-border);
+}
+
+.storyboard-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.storyboard-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--app-surface-border);
+}
+
+.storyboard-list li:last-child {
+  border-bottom: none;
+}
+
+.storyboard-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.storyboard-no {
+  color: var(--app-text-faint);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+}
+
+.storyboard-screen {
+  margin: 6px 0 0;
+  color: var(--app-text-body);
+  font-size: var(--app-font-size-xs);
+  line-height: 1.7;
+}
+
+.storyboard-narration {
+  margin: 2px 0 0;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-2xs);
+  line-height: 1.7;
 }
 
 .trend-head {
