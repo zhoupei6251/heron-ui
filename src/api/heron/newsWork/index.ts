@@ -5,6 +5,7 @@ import request from '@/utils/request';
 import type {
   NewsDraftForm,
   NewsGenerateForm,
+  NewsQualityFrame,
   NewsReviewForm,
   NewsPublishResolution,
   NewsVideoVersion,
@@ -95,4 +96,12 @@ export const fetchNewsPreview = (workId: string, versionId: string, artifactId: 
     method: 'get',
     responseType: 'blob'
   }) as unknown as Promise<Blob>;
+};
+
+/**
+ * 补充评审抽帧：按字幕实测区间从成片抽帧，帧以 data URL 回给页面。
+ * 不落库、不进质量报告，也不影响任何闸。
+ */
+export const fetchQualityFrames = (workId: string, versionId: string): AxiosPromise<NewsQualityFrame[]> => {
+  return request({ url: `/heron/newsWork/${workId}/versions/${versionId}/quality-frames`, method: 'get' });
 };

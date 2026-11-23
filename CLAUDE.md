@@ -49,6 +49,7 @@ plus-ui 6.1.0 基线：Vue 3 + TypeScript + Element Plus + Vite 8 + UnoCSS + Pin
 | 写完自检（自动） | impeccable | `Skill: impeccable`；Edit/Write 后 hook 自动回灌反 slop 发现，不用记得调 |
 | 评审 / 收尾 / 边界 | impeccable | `/impeccable critique`（设计打分排序）、`/impeccable audit`（可访问性 / 性能 / 主题 / 响应式，P0–P3）、`/impeccable polish`（收尾）、`/impeccable harden`（错误 / 溢出 / 空态） |
 | 需要发散视觉方向时 | taste-skill | `Skill: taste-skill:design-taste-frontend`；只走 `references/app-screens.md` 那条线，不要套落地页那套 |
+| 做**对外落地页 / 官网**（不是后台界面） | hallmark | `Skill: hallmark`；50 套主题 + Floor 硬闸（对比度 / focus / reduced-motion / 不许编造数字 / 8 个宽度 lint），出的是自包含 HTML+CSS |
 
 heron 专属约束（覆盖这些工具的通用建议）：
 

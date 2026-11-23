@@ -28,4 +28,6 @@ export interface VideoTemplate {
   maxDuration?: number;
   /** 老模板没有风格声明时为 null。 */
   style?: VideoStyle | null;
+  /** 视觉模式：2d 默认；3d 只服务空间数据（geo），由后端按模板声明给出。 */
+  visualMode?: '2d' | '3d';
 }

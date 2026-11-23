@@ -207,21 +207,36 @@
     </el-card>
 
     <el-card shadow="hover" class="hypothesis-panel">
-      <h3 class="note-title">模型假设区</h3>
+      <div class="note-head">
+        <h3 class="note-title">模型假设区</h3>
+        <el-button
+          v-hasPermi="['heron:newsWork:review']"
+          size="small"
+          :loading="hypothesisLoading"
+          @click="generateHypotheses"
+        >
+          生成假设
+        </el-button>
+      </div>
       <p class="note-text">
         <strong>来源</strong>
-        ：模型输出的策略假设（哪次决策、哪个提示词版本）。目前后端没有下发这个来源的数据，所以本区下面是空的。
+        ：模型基于归因分组提出的策略假设，每条都记着模型与提示词版本。
       </p>
       <p class="note-text">
         <strong>怎么验证</strong>
-        ：每条假设都要写清可证伪条件——需要多少样本（至少 30 条且跨 2 个自然周）、看哪个指标（播放中位数、完播中位数、离群比）、
-        以及出现什么结果算被证伪。写不清可证伪条件的假设不进本区。本区只放待验证项，不能当结论用。
+        ：每条都带可证伪条件——需要多少样本（至少 30 条且跨 2 个自然周）、看哪个指标、出现什么结果算被证伪。
+        写不清可证伪条件的假设不会进本区。本区只放待验证项，不能当结论用。
       </p>
+      <el-alert v-if="hypothesisError" type="warning" :closable="false" show-icon :title="hypothesisError" />
       <ul v-if="hypotheses.length" class="hypothesis-list">
         <li v-for="item in hypotheses" :key="item.id" class="hypothesis-item">
-          <span class="hypothesis-text">{{ item.text }}</span>
-          <span class="hypothesis-meta">来源：{{ item.source }}</span>
-          <span class="hypothesis-meta">怎么验证：{{ item.verify }}</span>
+          <span class="hypothesis-text">{{ item.claim }}</span>
+          <span class="hypothesis-meta">来源：{{ item.dimension }} · {{ item.bucketValue }} · {{ item.source }}</span>
+          <span class="hypothesis-meta">
+            怎么验证：≥{{ item.minSamples }} 条且跨 {{ item.minWeeks }} 周，看{{ metricLabel[item.metric] || item.metric }}；
+            {{ item.falsifyIf }} 算被证伪
+          </span>
+          <span class="hypothesis-meta">生成依据：{{ item.basis }}</span>
         </li>
       </ul>
       <el-empty v-else description="本区暂无假设" :image-size="72" />
@@ -231,18 +246,23 @@
       <h3 class="note-title">创作建议区</h3>
       <p class="note-text">
         <strong>来源</strong>
-        ：人工编辑写的建议，或 L3 质量报告里的 subjective / hypothesis 条目。目前后端没有下发这两个来源，本区下面是空的。
+        ：L3 质量报告里的主观条目（subjective / hypothesis）。人工编辑写的建议还没有落库来源，这里暂时只显示前者。
       </p>
       <p class="note-text">
         <strong>来源必标</strong>
-        ：每条建议都要写清是谁写的；来自 L3 推测（hypothesis）的还要再标一次「这是推测」。采纳与否由人决定，采纳后必须显式记录。
-        本区只放建议，不对播放量、留存或效果下任何结论。
+        ：每条建议都带判据号、类别与置信度；来自 L3 推测（hypothesis）的还要再标一次「这是推测」。采纳与否由人决定，
+        采纳后必须走策略覆盖显式记录。本区只放建议，不对播放量、留存或效果下任何结论。
       </p>
+      <el-alert v-if="suggestionError" type="warning" :closable="false" show-icon :title="suggestionError" />
       <ul v-if="suggestions.length" class="hypothesis-list">
         <li v-for="item in suggestions" :key="item.id" class="hypothesis-item">
           <span class="hypothesis-text">{{ item.text }}</span>
           <span class="hypothesis-meta">来源：{{ item.source }}</span>
-          <el-tag v-if="item.isHypothesis" type="info" size="small" effect="plain">这是推测</el-tag>
+          <el-tag type="info" size="small" effect="plain">{{ item.criterionClass }}</el-tag>
+          <el-tag v-if="item.confidence" type="info" size="small" effect="plain">
+            置信度 {{ item.confidence }}
+          </el-tag>
+          <el-tag v-if="item.hypothesis" type="info" size="small" effect="plain">这是推测</el-tag>
         </li>
       </ul>
       <el-empty v-else description="本区暂无建议" :image-size="72" />
@@ -338,7 +358,13 @@ import type {
   InsightTier,
   PerformanceInsight
 } from '@/api/heron/metrics';
-import { getMetricInsight } from '@/api/heron/metrics';
+import {
+  generateStrategyHypotheses,
+  getMetricInsight,
+  getMetricSuggestions,
+  listStrategyHypotheses
+} from '@/api/heron/metrics';
+import type { MetricHypothesis, MetricSuggestion } from '@/api/heron/metrics';
 import { extractErrorMessage } from '@/utils/request';
 import { bucketText } from './buckets';
 
@@ -361,13 +387,18 @@ const tabs: { key: InsightDimension; label: string; bucket: string }[] = [
 ];
 
 /**
- * 模型假设区：后端还没有下发这个数据来源，这里只放空态，一条假设都不造。
- * 将来接上后端时把条目填进这个数组即可，卡片上的呈现规则已经写死。
+ * 模型假设区：来自后端 strategy_hypothesis 表。
+ * 每条都带可证伪条件；页面只负责显示，不自己拼假设。
  */
-const hypotheses: { id: string; text: string; source: string; verify: string }[] = [];
+const hypotheses = ref<MetricHypothesis[]>([]);
+const hypothesisLoading = ref(false);
+const hypothesisError = ref('');
 
-/** 创作建议区：来源可能是人工编辑记录，也可能是 L3 报告的主观与推测条目，目前都没有。 */
-const suggestions: { id: string; text: string; source: string; isHypothesis: boolean }[] = [];
+/**
+ * 创作建议区：来自 L3 质量报告的 subjective / hypothesis 条目。
+ * 后端只下发已经落在那份报告里的条目，页面不自己拼建议。
+ */
+const suggestions = ref<MetricSuggestion[]>([]);
 
 const dimension = ref<InsightDimension>('template');
 const insight = ref<PerformanceInsight | null>(null);
@@ -549,13 +580,61 @@ const getList = async () => {
   }
 };
 
+const suggestionError = ref('');
+
+const metricLabel: Record<string, string> = {
+  medianPlays: '播放中位数',
+  medianCompletionRate: '完播中位数',
+  outlierRatio: '离群比'
+};
+
+const loadHypotheses = async () => {
+  hypothesisError.value = '';
+  try {
+    const res = await listStrategyHypotheses(20);
+    hypotheses.value = res.data ?? [];
+  } catch {
+    hypotheses.value = [];
+    hypothesisError.value = '策略假设取不到；这不影响上面的归因结论。';
+  }
+};
+
+const generateHypotheses = async () => {
+  if (hypothesisLoading.value) return;
+  hypothesisLoading.value = true;
+  hypothesisError.value = '';
+  try {
+    const res = await generateStrategyHypotheses();
+    hypotheses.value = res.data ?? [];
+  } catch (error) {
+    hypothesisError.value = (await extractErrorMessage(error)) || '生成假设失败';
+  } finally {
+    hypothesisLoading.value = false;
+  }
+};
+
+const loadSuggestions = async () => {
+  suggestionError.value = '';
+  try {
+    const res = await getMetricSuggestions(20);
+    suggestions.value = res.data ?? [];
+  } catch {
+    suggestions.value = [];
+    suggestionError.value = '创作建议取不到，本区按空处理；这不影响上面的归因结论。';
+  }
+};
+
 const switchDimension = (key: InsightDimension) => {
   if (dimension.value === key) return;
   dimension.value = key;
   void getList();
 };
 
-onMounted(getList);
+onMounted(() => {
+  void getList();
+  void loadHypotheses();
+  void loadSuggestions();
+});
 </script>
 
 <style lang="scss" scoped>
@@ -730,6 +809,19 @@ onMounted(getList);
   color: var(--app-text-title);
   font-size: var(--app-font-size-sm);
   font-weight: 600;
+}
+
+/* 卡片标题与动作同一行：标题左边，生成按钮右边。 */
+.note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.note-head .note-title {
+  margin: 0;
 }
 
 .note-text {

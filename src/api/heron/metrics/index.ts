@@ -185,3 +185,56 @@ export const listNewsMetrics = (versionId: string): AxiosPromise<NewsMetric[]> =
 export const saveNewsMetric = (data: NewsMetricForm): AxiosPromise<NewsMetric> => {
   return request({ url: '/heron/metrics', method: 'post', data });
 };
+
+/**
+ * 创作建议：来自 L3 质量报告的 subjective / hypothesis 条目。
+ * 不是结论、也不是预测——采纳与否由人决定，采纳后要显式记一条策略覆盖。
+ */
+export interface MetricSuggestion {
+  id: string;
+  versionId: string;
+  /** L3 判据号，如 pacing_variation。 */
+  criterionId: string;
+  text: string;
+  /** 来源标签：L3 质量审稿 · 提示词版本 · 模型。 */
+  source: string;
+  /** 是否属于模型推测（class=hypothesis）。 */
+  hypothesis: boolean;
+  criterionClass: 'subjective' | 'hypothesis';
+  confidence: string;
+}
+
+export const getMetricSuggestions = (limit = 20): AxiosPromise<MetricSuggestion[]> => {
+  return request({ url: '/heron/metrics/suggestions', method: 'get', params: { limit } });
+};
+
+/**
+ * 一条模型策略假设。
+ *
+ * <p>它不是结论，也不是预测：`minSamples / minWeeks / metric / falsifyIf` 就是「怎么验证」。
+ * 没有可证伪条件的假设不会出现在这份数据里。
+ */
+export interface MetricHypothesis {
+  id: string;
+  claim: string;
+  dimension: string;
+  bucketValue: string;
+  /** 验证看哪个指标：medianPlays / medianCompletionRate / outlierRatio。 */
+  metric: string;
+  minSamples: number;
+  minWeeks: number;
+  falsifyIf: string;
+  /** 生成时的样本依据（n、证据等级、当时的中位数）。 */
+  basis: string;
+  source: string;
+  generatedAt: string;
+}
+
+export const listStrategyHypotheses = (limit = 20): AxiosPromise<MetricHypothesis[]> => {
+  return request({ url: '/heron/metrics/hypotheses', method: 'get', params: { limit } });
+};
+
+/** 人工触发生成一批假设；后端会拒掉自造分组、验证条件不够硬和带预测措辞的条目。 */
+export const generateStrategyHypotheses = (): AxiosPromise<MetricHypothesis[]> => {
+  return request({ url: '/heron/metrics/hypotheses', method: 'post' });
+};

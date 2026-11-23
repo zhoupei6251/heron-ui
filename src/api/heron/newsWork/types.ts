@@ -103,6 +103,19 @@ export interface NewsVideoVersion {
   workTitle?: string;
 }
 
+/**
+ * 补充评审抽帧：一帧一个 data URL。
+ * 帧不落库、不进质量报告，只在审片时给人看画面。
+ */
+export interface NewsQualityFrame {
+  seq: number;
+  /** 画面出处：第几段 / 结尾。 */
+  label: string;
+  /** 抽帧时间点，取自字幕闸实测区间。 */
+  atMs: number;
+  dataUrl: string;
+}
+
 export interface NewsWork {
   workId: string;
   candidateId: string;

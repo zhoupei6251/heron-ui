@@ -30,3 +30,4 @@ components.d.ts
 
 # AI 工具本机挂载（junction 指向同级 harness-factory，不提交）
 harness-factory
+.claude/skills/

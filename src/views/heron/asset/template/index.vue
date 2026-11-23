@@ -17,9 +17,12 @@
       <article v-for="item in templates" :key="item.key" class="template-card" :class="{ 'is-broken': !item.locked }">
         <header class="card-head">
           <span class="template-key">{{ item.key }}</span>
-          <el-tag :type="item.locked ? 'success' : 'danger'" effect="plain" size="small">
-            {{ item.locked ? 'LOCK 有效' : 'LOCK 异常' }}
-          </el-tag>
+          <span class="head-tags">
+            <el-tag v-if="item.visualMode === '3d'" type="warning" effect="plain" size="small">3D</el-tag>
+            <el-tag :type="item.locked ? 'success' : 'danger'" effect="plain" size="small">
+              {{ item.locked ? 'LOCK 有效' : 'LOCK 异常' }}
+            </el-tag>
+          </span>
         </header>
         <h3 class="template-name">{{ item.name }}</h3>
         <div v-if="item.style" class="style-strip">
@@ -160,6 +163,11 @@ onMounted(getList);
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.head-tags {
+  display: flex;
+  gap: 4px;
 }
 
 .template-key {

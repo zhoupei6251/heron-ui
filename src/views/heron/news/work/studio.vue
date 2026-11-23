@@ -517,6 +517,30 @@
                 </div>
               </template>
               <p v-else class="muted">本条未做质量审稿。</p>
+
+              <div class="quality-frames">
+                <div class="quality-frames-head">
+                  <h5 class="quality-class-title">画面回看（补充评审）</h5>
+                  <el-button
+                    v-hasPermi="['heron:newsWork:review']"
+                    size="small"
+                    :loading="qualityFramesLoading"
+                    @click="loadQualityFrames"
+                  >
+                    {{ qualityFrames.length ? '重新抽帧' : '抽取画面' }}
+                  </el-button>
+                </div>
+                <p class="muted">
+                  按字幕实测区间，每段取中点抽 1 帧、结尾 1 帧，最多 8 帧。
+                  帧只在这里看，不落库、不进质量报告。
+                </p>
+                <div v-if="qualityFrames.length" class="quality-frame-grid">
+                  <figure v-for="frame in qualityFrames" :key="frame.seq" class="quality-frame">
+                    <img :src="frame.dataUrl" :alt="frame.label" loading="lazy" />
+                    <figcaption>{{ frame.label }} · {{ (frame.atMs / 1000).toFixed(1) }}s</figcaption>
+                  </figure>
+                </div>
+              </div>
             </div>
 
             <div class="report-group">
@@ -626,11 +650,11 @@
                   <el-option
                     v-for="item in templates"
                     :key="item.key"
-                    :label="`${item.name}（${item.key}）`"
+                    :label="`${item.name}${item.visualMode === '3d' ? '·3D' : ''}（${item.key}）`"
                     :value="item.key"
                     :disabled="!item.locked"
                   >
-                    <span>{{ item.name }}</span>
+                    <span>{{ item.name }}{{ item.visualMode === '3d' ? '·3D' : '' }}</span>
                     <span class="option-hint">{{ item.key }}</span>
                   </el-option>
                 </el-select>
@@ -646,6 +670,10 @@
 
               <el-form-item v-if="selectedTemplate" label="当前模板能力">
                 <div class="capability">
+                  <div class="cap-row">
+                    <span class="cap-label">视觉模式</span>
+                    <span class="cap-value mono">{{ selectedTemplate.visualMode === '3d' ? '3D（空间数据）' : '2D' }}</span>
+                  </div>
                   <div class="cap-row">
                     <span class="cap-label">画幅</span>
                     <span class="cap-value mono">{{ selectedTemplate.aspectRatio || '-' }}</span>
@@ -714,6 +742,7 @@ import type { ProductionCapabilities, ProductionFile, ProductionTask } from '@/a
 import type { VideoTemplate } from '@/api/heron/template/types';
 import {
   fetchNewsPreview,
+  fetchQualityFrames,
   generateNewsVideo,
   getNewsWork,
   getNewsVersion,
@@ -722,6 +751,7 @@ import {
   backfillNewsPublishUrl,
   saveNewsDraft
 } from '@/api/heron/newsWork';
+import type { NewsQualityFrame } from '@/api/heron/newsWork/types';
 import { getProduction, getProductionCapabilities, cancelProduction } from '@/api/heron/production';
 import { listNewsMetrics, saveNewsMetric } from '@/api/heron/metrics';
 import type { NewsMetric } from '@/api/heron/metrics';
@@ -968,6 +998,13 @@ const scriptReport = computed(() => {
  */
 const qualityReport = computed<QualityReport | null>(() => parseQualityReport(selected.value?.qualityReport));
 
+/**
+ * 补充评审抽帧：只在人点了按钮之后才跑。
+ * 自动抽会让每条片都多一次 ffmpeg，抽出来的帧也没人看。
+ */
+const qualityFrames = ref<NewsQualityFrame[]>([]);
+const qualityFramesLoading = ref(false);
+
 /** 分类计数按判据条目重算，保证页面上看到的数字和看到的条目永远对得上。 */
 const qualityCounts = computed(() => qualitySummary(qualityReport.value?.criteria ?? []));
 
@@ -1094,6 +1131,8 @@ const selectVersion = (row?: NewsVideoVersion, loaded?: NewsVideoVersion) => {
   fingerprintsConfirmed.value = false;
   reviewForm.value = { decision: 'approved', contactSha256: '', videoSha256: '', reason: '' };
   selected.value = !row ? undefined : loaded ? { ...row, ...loaded } : row;
+  qualityFrames.value = [];
+  qualityFramesLoading.value = false;
   void loadReviewSubtitles();
   void loadMetrics(row?.versionId);
   void loadTrend();
@@ -1134,6 +1173,26 @@ const releasePreview = () => {
     previewUrl.value = '';
   }
   previewKind.value = '';
+};
+
+/**
+ * 补充评审抽帧：按字幕实测区间从成片抽帧。
+ * 帧只在这里看，不写回报告——报告一次写入、不可覆盖。
+ */
+const loadQualityFrames = async () => {
+  const version = selected.value;
+  const workId = work.value?.workId;
+  if (!version || !workId || qualityFramesLoading.value) return;
+  qualityFramesLoading.value = true;
+  try {
+    const res = await fetchQualityFrames(String(workId), String(version.versionId));
+    qualityFrames.value = res.data ?? [];
+  } catch {
+    qualityFrames.value = [];
+    modal.msgWarning('抽取画面失败，请确认该版本成片仍在。');
+  } finally {
+    qualityFramesLoading.value = false;
+  }
 };
 
 const loadReviewSubtitles = async () => {
@@ -1694,6 +1753,44 @@ watch(() => route.query.versionId, () => { if (!loading.value) void selectReques
   color: var(--app-text-faint);
   font-size: var(--app-font-size-2xs);
   line-height: 1.7;
+}
+
+/* 补充评审抽帧：给人看的画面证据，和报告分区呈现，不混进判据列表。 */
+.quality-frames {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-surface-border);
+}
+
+.quality-frames-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quality-frame-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.quality-frame {
+  margin: 0;
+}
+
+.quality-frame img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--app-surface-border);
+  border-radius: var(--app-radius-sm, 4px);
+}
+
+.quality-frame figcaption {
+  margin-top: 4px;
+  color: var(--app-text-faint);
+  font-size: var(--app-font-size-2xs);
 }
 
 .criterion-list {
