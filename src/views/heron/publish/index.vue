@@ -137,7 +137,7 @@ const submitBackfill = async () => {
   if (!row || !url) return;
   saving.value = true;
   try {
-    await backfillNewsPublishUrl(row.workId, row.versionId, url);
+    await backfillNewsPublishUrl(row.workId, row.id, url);
     modal.msgSuccess('作品链接已补上');
     dialog.value = { visible: false };
     await getList();

@@ -166,10 +166,10 @@ const handleClaim = async () => {
   if (!detail.value) return;
   claiming.value = true;
   try {
-    const res = await claimNewsCandidate(detail.value.candidateId);
+    const res = await claimNewsCandidate(detail.value.id);
     modal.msgSuccess('已认领，可在视频作品里继续编辑');
-    if (res.data?.workId) {
-      router.push({ path: '/heron/work-studio', query: { workId: res.data.workId } });
+    if (res.data?.id) {
+      router.push({ path: '/heron/work-studio', query: { workId: res.data.id } });
     } else {
       await load();
     }

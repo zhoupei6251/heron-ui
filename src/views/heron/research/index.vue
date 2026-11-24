@@ -425,10 +425,10 @@ const resetQuery = () => {
 };
 
 const openDetail = async (row: ResearchTask) => {
-  detailId.value = row.researchId;
+  detailId.value = row.id;
   detail.value = row;
   detailDialog.visible = true;
-  await loadDetail(row.researchId);
+  await loadDetail(row.id);
   schedulePolling();
 };
 
@@ -466,24 +466,24 @@ const submitCreate = async () => {
 
 const handleCancel = async (row: ResearchTask) => {
   try {
-    await modal.confirm(`确定取消研究 ${row.researchNo || row.researchId}？已查到的数据会保留，执行中的最多 15 秒后停下。`);
+    await modal.confirm(`确定取消研究 ${row.researchNo || row.id}？已查到的数据会保留，执行中的最多 15 秒后停下。`);
   } catch {
     return;
   }
-  await cancelResearch(row.researchId);
+  await cancelResearch(row.id);
   modal.msgSuccess('已提交取消');
   await getList(true);
-  if (detailDialog.visible && detailId.value === row.researchId) await loadDetail(row.researchId, true);
+  if (detailDialog.visible && detailId.value === row.id) await loadDetail(row.id, true);
   schedulePolling();
 };
 
 const handleRerun = async (row: ResearchTask) => {
   try {
-    await modal.confirm(`重跑研究 ${row.researchNo || row.researchId}？会沿用同一段会话，可能继续消耗模型额度。`);
+    await modal.confirm(`重跑研究 ${row.researchNo || row.id}？会沿用同一段会话，可能继续消耗模型额度。`);
   } catch {
     return;
   }
-  await rerunResearch(row.researchId);
+  await rerunResearch(row.id);
   modal.msgSuccess('已排上执行');
   await getList(true);
   schedulePolling();

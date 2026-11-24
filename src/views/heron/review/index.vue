@@ -277,7 +277,7 @@ const getList = async () => {
     const res = await listReviewQueue(page.value);
     queue.value = res.data?.rows || [];
     total.value = res.data?.total || 0;
-    if (selected.value && !queue.value.some(row => row.versionId === selected.value?.versionId)) {
+    if (selected.value && !queue.value.some(row => row.id === selected.value?.id)) {
       selectVersion(undefined);
     }
   });
@@ -320,12 +320,12 @@ const loadPreview = async (kind: PreviewKind) => {
     return;
   }
   const ticket = previewTicket;
-  const { workId, versionId } = selected.value;
+  const { workId, id } = selected.value;
   const file = artifact(kind)!;
   cell.loading = true;
   cell.error = '';
   try {
-    const blob = await fetchNewsPreview(workId, versionId, file.artifactId);
+    const blob = await fetchNewsPreview(workId, id, file.artifactId);
     if (ticket !== previewTicket) return;
     if (cell.url) URL.revokeObjectURL(cell.url);
     cell.url = URL.createObjectURL(blob);
@@ -362,7 +362,7 @@ const loadTrend = async () => {
   trend.error = '';
   trend.report = null;
   try {
-    const blob = await fetchNewsPreview(version.workId, version.versionId, file.artifactId);
+    const blob = await fetchNewsPreview(version.workId, version.id, file.artifactId);
     const raw = await blob.text();
     if (ticket !== trendTicket) return;
     const report = parseTrendReport(raw);
@@ -402,7 +402,7 @@ const loadStoryboard = async () => {
   storyboard.error = '';
   storyboard.report = null;
   try {
-    const blob = await fetchNewsPreview(version.workId, version.versionId, file.artifactId);
+    const blob = await fetchNewsPreview(version.workId, version.id, file.artifactId);
     const raw = await blob.text();
     if (ticket !== storyboardTicket) return;
     const report = parseStoryboard(raw);
@@ -419,7 +419,7 @@ const submitReview = async () => {
   if (!selected.value) return;
   submitting.value = true;
   try {
-    await confirmNewsVersion(selected.value.workId, selected.value.versionId, {
+    await confirmNewsVersion(selected.value.workId, selected.value.id, {
       ...form.value,
       contactSha256: contactSha.value,
       videoSha256: videoSha.value

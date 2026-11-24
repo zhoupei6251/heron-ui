@@ -6,7 +6,7 @@ export type NewsReviewStatus = 'pending' | 'approved' | 'rejected';
 export type NewsPublishSource = 'manual' | 'api' | 'douyin-cli' | 'sandbox';
 
 export interface NewsPublishAttempt {
-  attemptId: string;
+  id: string;
   versionId: string;
   videoSha: string;
   source: string;
@@ -62,7 +62,7 @@ export interface NewsEditorialReview {
 }
 
 export interface NewsVideoVersion {
-  versionId: string;
+  id: string;
   workId: string;
   ownerId?: string | number;
   versionNo: number;
@@ -117,7 +117,7 @@ export interface NewsQualityFrame {
 }
 
 export interface NewsWork {
-  workId: string;
+  id: string;
   candidateId: string;
   ownerId?: string | number;
   title: string;

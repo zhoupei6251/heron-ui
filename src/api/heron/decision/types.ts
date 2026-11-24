@@ -13,7 +13,7 @@ export interface ContentDecisionQuery extends PageQuery {
  * 后端按字符串返回，别当数字算。
  */
 export interface ContentDecision {
-  decisionId: string;
+  id: string;
   researchId: string;
   attemptNo?: number;
   opportunityId?: string | null;

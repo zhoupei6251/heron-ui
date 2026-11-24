@@ -9,7 +9,7 @@ export interface ProtoProjectQuery extends PageQuery {
 }
 
 export interface ProtoProject {
-  projectId: string;
+  id: string;
   ownerId?: string | number;
   name: string;
   requirement: string;
@@ -128,7 +128,7 @@ export interface ProtoInputSnapshot {
 }
 
 export interface ProtoVersion {
-  versionId: string;
+  id: string;
   projectId: string;
   ownerId?: string | number;
   versionNo: number;

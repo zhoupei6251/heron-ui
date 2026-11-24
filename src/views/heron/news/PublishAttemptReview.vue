@@ -90,7 +90,7 @@ const freshForm = (): PublishResolutionForm => ({ decision: 'published', reason:
 const form = ref(freshForm());
 let mounted = true;
 onBeforeUnmount(() => { mounted = false; });
-watch([() => props.version.versionId, () => attempt.value?.attemptId, () => attempt.value?.status], () => {
+watch([() => props.version.id, () => attempt.value?.id, () => attempt.value?.status], () => {
   form.value = freshForm();
   errorMessage.value = '';
 });
@@ -103,7 +103,7 @@ const refreshStatus = async () => {
   const version = props.version;
   refreshing.value = true;
   try {
-    const result = await getNewsVersion(version.workId, version.versionId);
+    const result = await getNewsVersion(version.workId, version.id);
     if (mounted) emit('updated', result.data);
   } catch {
     errorMessage.value = '暂时读不到最新状态，请稍后刷新；不会自动重试上传。';
@@ -112,7 +112,7 @@ const refreshStatus = async () => {
 
 const refreshAfterFailure = async (version: NewsVideoVersion) => {
   try {
-    const result = await getNewsVersion(version.workId, version.versionId);
+    const result = await getNewsVersion(version.workId, version.id);
     if (mounted) emit('updated', result.data);
   } catch {
     errorMessage.value += ' 暂时读不到最新状态，请刷新后核对；不会自动重试上传。';
@@ -129,7 +129,7 @@ const submitResolution = async () => {
   catch (error) { errorMessage.value = error instanceof Error ? error.message : '核对信息不完整'; return; }
   busy.value = true;
   try {
-    const result = await resolveNewsPublishAttempt(version.workId, version.versionId, current.attemptId, payload);
+    const result = await resolveNewsPublishAttempt(version.workId, version.id, current.id, payload);
     if (!mounted) return;
     modal.msgSuccess(payload.decision === 'published' ? '已记录核对后的发布回执' : '已记录未发出，可以重新提交本版');
     emit('updated', result.data);
@@ -145,7 +145,7 @@ const submitReviewed = async () => {
   busy.value = true;
   errorMessage.value = '';
   try {
-    const result = await confirmNewsVersion(version.workId, version.versionId, { decision: 'approved',
+    const result = await confirmNewsVersion(version.workId, version.id, { decision: 'approved',
       contactSha256: version.reviewContactSha!, videoSha256: version.reviewVideoSha! });
     if (!mounted) return;
     modal.msgSuccess(confirmationMessage(result.data));

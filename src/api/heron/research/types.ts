@@ -12,7 +12,7 @@ export interface ResearchTaskQuery extends PageQuery {
  * 所以 researchId / opportunityId 都是 string，别当数字算。
  */
 export interface ResearchTask {
-  researchId: string;
+  id: string;
   researchNo?: string;
   opportunityId: string;
   goal?: string;

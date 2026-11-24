@@ -26,7 +26,7 @@ export interface NewsSourceQuery extends PageQuery {
 }
 
 export interface NewsSource {
-  sourceId: string;
+  id: string;
   name: string;
   sourceType: NewsSourceType;
   url: string;

@@ -37,7 +37,7 @@ export interface ProductionUsage {
 }
 
 export interface ProductionTask {
-  taskId: string;
+  id: string;
   bizType: ProductionBizType;
   bizId: string;
   versionId?: string;
@@ -56,7 +56,7 @@ export interface ProductionTask {
 
 /** 生成受理回执：任务已入队，产物与状态由任务中心跟踪。 */
 export interface ProductionReceipt {
-  taskId: string;
+  id: string;
   bizType: ProductionBizType;
   bizId: string;
   versionId: string;

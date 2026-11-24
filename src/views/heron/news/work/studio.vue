@@ -96,8 +96,8 @@
             <ul v-loading="versionLoading" class="version-list">
               <li
                 v-for="row in versions"
-                :key="row.versionId"
-                :class="['version-item', { 'is-active': selected?.versionId === row.versionId }]"
+                :key="row.id"
+                :class="['version-item', { 'is-active': selected?.id === row.id }]"
                 @click="selectVersion(row)"
               >
                 <span class="version-no">v{{ row.versionNo }}</span>
@@ -296,7 +296,7 @@
             :description="selected.taskErrorReason || '失败原因未记录，可到生产任务页查该任务的阶段与用量。'"
           />
 
-          <PublishAttemptReview v-if="selected" :key="selected.versionId" :version="selected" @updated="handlePublishUpdated" />
+          <PublishAttemptReview v-if="selected" :key="selected.id" :version="selected" @updated="handlePublishUpdated" />
 
           <section v-if="selected?.publishSource" class="col-block">
             <h3 class="block-title">平台回执</h3>
@@ -876,14 +876,14 @@ const saveMetric = async () => {
   metricSaving.value = true;
   try {
     await saveNewsMetric({
-      versionId: selected.value.versionId,
+      versionId: selected.value.id,
       platform: 'douyin',
       plays: metricForm.value.plays,
       completionRate: metricForm.value.completion === undefined ? undefined : metricForm.value.completion / 100,
       likes: metricForm.value.likes
     });
     modal.msgSuccess('表现已记录');
-    await loadMetrics(selected.value.versionId);
+    await loadMetrics(selected.value.id);
   } finally {
     metricSaving.value = false;
   }
@@ -897,7 +897,7 @@ const savePublishUrl = async () => {
   if (!work.value || !selected.value || !url) return;
   publishUrlSaving.value = true;
   try {
-    const res = await backfillNewsPublishUrl(work.value.workId, selected.value.versionId, url);
+    const res = await backfillNewsPublishUrl(work.value.id, selected.value.id, url);
     modal.msgSuccess('作品链接已补上');
     publishUrlInput.value = '';
     await handlePublishUpdated(res.data);
@@ -1095,12 +1095,12 @@ const watchTask = async (taskId: string) => {
 
 const loadVersions = async () => {
   if (!work.value) return;
-  const workId = work.value.workId;
+  const workId = work.value.id;
   const request = ++versionsRequest;
   versionLoading.value = true;
   try {
     const res = await listNewsVersions(workId, versionQuery.value);
-    if (request !== versionsRequest || work.value?.workId !== workId) return;
+    if (request !== versionsRequest || work.value?.id !== workId) return;
     versions.value = res.data?.rows || [];
     versionTotal.value = res.data?.total || 0;
   } finally {
@@ -1113,11 +1113,11 @@ const loadVersions = async () => {
  * 质量报告要读稿件，所以选版本时补一次详情，把两个接口的返回对齐到同一份数据。
  */
 const loadVersionDetail = async (versionId: string, request: number) => {
-  const workId = work.value?.workId;
+  const workId = work.value?.id;
   if (!workId) return;
   try {
     const res = await getNewsVersion(workId, versionId);
-    if (request !== versionRequest || selected.value?.versionId !== versionId) return;
+    if (request !== versionRequest || selected.value?.id !== versionId) return;
     selected.value = { ...selected.value, ...res.data };
   } catch {
     // 详情读不到就保留列表里的字段，质量报告据此标注缺失，不伪造内容。
@@ -1134,30 +1134,30 @@ const selectVersion = (row?: NewsVideoVersion, loaded?: NewsVideoVersion) => {
   qualityFrames.value = [];
   qualityFramesLoading.value = false;
   void loadReviewSubtitles();
-  void loadMetrics(row?.versionId);
+  void loadMetrics(row?.id);
   void loadTrend();
-  if (row && !loaded) void loadVersionDetail(row.versionId, request);
+  if (row && !loaded) void loadVersionDetail(row.id, request);
 };
 
 const selectRequestedVersion = async () => {
-  const workId = work.value?.workId;
+  const workId = work.value?.id;
   const versionId = String(route.query.versionId || '');
   if (!workId || !versionId) return;
   const request = ++versionRequest;
   try {
     const result = await getNewsVersion(workId, versionId);
-    if (request === versionRequest && work.value?.workId === workId) selectVersion(result.data, result.data);
+    if (request === versionRequest && work.value?.id === workId) selectVersion(result.data, result.data);
   } catch {
     if (request === versionRequest) modal.msgWarning('指定版本读取失败，请从版本历史选择。');
   }
 };
 
 const handlePublishUpdated = async (row: NewsVideoVersion) => {
-  if (work.value?.workId !== row.workId) return;
-  if (selected.value?.versionId === row.versionId) selectVersion(row, row);
+  if (work.value?.id !== row.workId) return;
+  if (selected.value?.id === row.id) selectVersion(row, row);
   try {
     const [, refreshed] = await Promise.all([loadVersions(), getNewsWork(row.workId)]);
-    if (work.value?.workId === row.workId) work.value = refreshed.data;
+    if (work.value?.id === row.workId) work.value = refreshed.data;
   } catch {
     modal.msgWarning('当前版本状态已更新，作品列表暂时刷新失败。');
   }
@@ -1181,11 +1181,11 @@ const releasePreview = () => {
  */
 const loadQualityFrames = async () => {
   const version = selected.value;
-  const workId = work.value?.workId;
+  const workId = work.value?.id;
   if (!version || !workId || qualityFramesLoading.value) return;
   qualityFramesLoading.value = true;
   try {
-    const res = await fetchQualityFrames(String(workId), String(version.versionId));
+    const res = await fetchQualityFrames(String(workId), String(version.id));
     qualityFrames.value = res.data ?? [];
   } catch {
     qualityFrames.value = [];
@@ -1201,7 +1201,7 @@ const loadReviewSubtitles = async () => {
   subtitleError.value = '';
   subtitleLoading.value = false;
   const version = selected.value;
-  const workId = work.value?.workId;
+  const workId = work.value?.id;
   if (!version || !workId || !reviewSegments.value.length) return;
   const file = version.artifacts?.find(item => item.kind === 'subtitles' && item.available);
   if (!file) {
@@ -1210,7 +1210,7 @@ const loadReviewSubtitles = async () => {
   }
   subtitleLoading.value = true;
   try {
-    const blob = await fetchNewsPreview(workId, version.versionId, file.artifactId);
+    const blob = await fetchNewsPreview(workId, version.id, file.artifactId);
     const text = await blob.text();
     if (request === subtitleRequest) subtitleText.value = text;
   } catch {
@@ -1237,7 +1237,7 @@ const loadTrend = async () => {
   trendLoading.value = false;
   trendError.value = '';
   const version = selected.value;
-  const workId = work.value?.workId;
+  const workId = work.value?.id;
   if (!version || !workId) return;
   const file = version.artifacts?.find(item => item.kind === 'trend');
   if (!file) return;
@@ -1247,7 +1247,7 @@ const loadTrend = async () => {
   }
   trendLoading.value = true;
   try {
-    const blob = await fetchNewsPreview(workId, version.versionId, file.artifactId);
+    const blob = await fetchNewsPreview(workId, version.id, file.artifactId);
     const raw = await blob.text();
     if (request !== trendRequest) return;
     const report = parseTrendReport(raw);
@@ -1274,9 +1274,9 @@ const applyPendingSeek = () => {
 };
 
 const seekSegment = async (segment: ReviewSegment) => {
-  const versionId = selected.value?.versionId;
+  const versionId = selected.value?.id;
   if (!previewUrl.value || previewKind.value !== 'mp4') await loadPreview('mp4');
-  if (!versionId || selected.value?.versionId !== versionId || previewKind.value !== 'mp4' || !previewUrl.value) return;
+  if (!versionId || selected.value?.id !== versionId || previewKind.value !== 'mp4' || !previewUrl.value) return;
   pendingSeekMs = segment.startMs;
   await nextTick();
   applyPendingSeek();
@@ -1295,9 +1295,9 @@ const handleSaveDraft = () => {
     if (!valid || !work.value) return;
     savingDraft.value = true;
     try {
-      await saveNewsDraft(work.value.workId, draftForm.value);
+      await saveNewsDraft(work.value.id, draftForm.value);
       modal.msgSuccess('草稿已保存');
-      await reloadWork(work.value.workId);
+      await reloadWork(work.value.id);
     } finally {
       savingDraft.value = false;
     }
@@ -1318,15 +1318,15 @@ const handleGenerate = async () => {
   }
   generating.value = true;
   try {
-    const res = await generateNewsVideo(work.value.workId, {
+    const res = await generateNewsVideo(work.value.id, {
       requestKey,
       expectedRevision: draftForm.value.expectedRevision
     });
-    modal.msgSuccess(`已受理，任务 ${res.data.taskId}`);
+    modal.msgSuccess(`已受理，任务 ${res.data.id}`);
     requestKey = newRequestKey();
-    await reloadWork(work.value.workId);
+    await reloadWork(work.value.id);
     await loadVersions();
-    void watchTask(res.data.taskId);
+    void watchTask(res.data.id);
   } finally {
     generating.value = false;
   }
@@ -1339,7 +1339,7 @@ const handleCancelTask = async () => {
   } catch {
     return;
   }
-  await cancelProduction(liveTask.value.taskId);
+  await cancelProduction(liveTask.value.id);
   modal.msgSuccess('已提交取消');
 };
 
@@ -1349,7 +1349,7 @@ const handlePreview = async (file: ProductionFile) => {
   const request = previewRequest;
   previewLoading.value = true;
   try {
-    const blob = await fetchNewsPreview(work.value.workId, selected.value.versionId, file.artifactId);
+    const blob = await fetchNewsPreview(work.value.id, selected.value.id, file.artifactId);
     if (request !== previewRequest) return;
     previewKind.value = file.kind;
     previewUrl.value = URL.createObjectURL(blob);
@@ -1375,7 +1375,7 @@ const handleDownload = (file?: ProductionFile) => {
     return;
   }
   void download(
-    `/heron/newsWork/${work.value.workId}/versions/${selected.value.versionId}/download`,
+    `/heron/newsWork/${work.value.id}/versions/${selected.value.id}/download`,
     { artifactId: video.artifactId, videoSha256: video.sha256 },
     `${video.sha256.slice(0, 8)}.mp4`
   );
@@ -1386,9 +1386,9 @@ const handleReview = () => {
     if (!valid || !work.value || !selected.value) return;
     reviewing.value = true;
     const version = selected.value;
-    const workId = work.value.workId;
+    const workId = work.value.id;
     try {
-      const res = await confirmNewsVersion(workId, version.versionId, {
+      const res = await confirmNewsVersion(workId, version.id, {
         ...reviewForm.value,
         contactSha256: contactSha.value,
         videoSha256: videoSha.value
@@ -1399,7 +1399,7 @@ const handleReview = () => {
       await handlePublishUpdated(res.data);
     } catch {
       try {
-        const current = await getNewsVersion(workId, version.versionId);
+        const current = await getNewsVersion(workId, version.id);
         await handlePublishUpdated(current.data);
       } catch {
         modal.msgWarning('暂时无法刷新发布状态，请先到平台核对；系统不会自动重试上传。');
@@ -1453,9 +1453,9 @@ const load = async () => {
     await reloadWork(workId);
     await loadVersions();
     if (route.query.versionId) await selectRequestedVersion();
-    else selectVersion(versions.value.find(row => row.versionId === work.value?.currentVersionId) || versions.value[0]);
+    else selectVersion(versions.value.find(row => row.id === work.value?.currentVersionId) || versions.value[0]);
     if (work.value?.activeTask) {
-      void watchTask(work.value.activeTask.taskId);
+      void watchTask(work.value.activeTask.id);
     }
   } catch {
     work.value = undefined;

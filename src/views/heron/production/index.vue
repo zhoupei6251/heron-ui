@@ -131,7 +131,7 @@
       <div v-loading="detailLoading">
         <template v-if="detail">
           <el-descriptions :column="2" border>
-            <el-descriptions-item label="任务 ID">{{ detail.taskId }}</el-descriptions-item>
+            <el-descriptions-item label="任务 ID">{{ detail.id }}</el-descriptions-item>
             <el-descriptions-item label="业务线">
               {{ productionBizText[detail.bizType] || detail.bizType }}
             </el-descriptions-item>
@@ -377,10 +377,10 @@ const { resetQuery } = useSearchReset({
 });
 
 const openDetail = async (row: ProductionTask) => {
-  detailTaskId.value = row.taskId;
+  detailTaskId.value = row.id;
   detail.value = row;
   detailDialog.visible = true;
-  await loadDetail(row.taskId);
+  await loadDetail(row.id);
   schedulePolling();
 };
 
@@ -393,15 +393,15 @@ const handleDetailClosed = () => {
 
 const handleCancel = async (row: ProductionTask) => {
   try {
-    await modal.confirm(`确定取消任务 ${row.taskId}？执行中的任务会先进入取消中，确认进程停止后才显示已取消。`);
+    await modal.confirm(`确定取消任务 ${row.id}？执行中的任务会先进入取消中，确认进程停止后才显示已取消。`);
   } catch {
     return;
   }
-  await cancelProduction(row.taskId);
+  await cancelProduction(row.id);
   modal.msgSuccess('已提交取消');
   await getList(true);
-  if (detailDialog.visible && detailTaskId.value === row.taskId) {
-    await loadDetail(row.taskId, true);
+  if (detailDialog.visible && detailTaskId.value === row.id) {
+    await loadDetail(row.id, true);
   }
   schedulePolling();
 };

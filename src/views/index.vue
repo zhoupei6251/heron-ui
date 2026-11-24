@@ -171,9 +171,9 @@ const needs = computed<Need[]>(() => {
   const items: Need[] = [];
   failedTasks.value.forEach(task => {
     items.push({
-      key: `task-${task.taskId}`,
+      key: `task-${task.id}`,
       badge: '任务失败',
-      title: `${task.bizType === 'news_video' ? '新闻' : '原型'} ${task.taskId}`,
+      title: `${task.bizType === 'news_video' ? '新闻' : '原型'} ${task.id}`,
       detail: [task.stage ? `阶段 ${task.stage}` : '', task.errorCode || '', task.errorReason || '']
         .filter(Boolean)
         .join(' · '),
@@ -183,7 +183,7 @@ const needs = computed<Need[]>(() => {
   });
   failingSources.value.forEach(source => {
     items.push({
-      key: `source-${source.sourceId}`,
+      key: `source-${source.id}`,
       badge: '来源失败',
       title: source.name,
       detail: `连续失败 ${source.failureCount} 次${source.errorCode ? ' · ' + source.errorCode : ''}${

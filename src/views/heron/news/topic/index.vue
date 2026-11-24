@@ -44,7 +44,7 @@
     </el-card>
 
     <div v-loading="loading" class="topic-grid">
-      <article v-for="row in candidates" :key="row.candidateId" class="topic-card">
+      <article v-for="row in candidates" :key="row.id" class="topic-card">
         <header class="topic-card-head">
           <h3 class="topic-title" :title="row.title">{{ row.title }}</h3>
           <el-tag v-if="row.claimedAt" size="small" type="success" effect="plain">已认领</el-tag>
@@ -253,16 +253,16 @@ const submitForm = () => {
 };
 
 const openDetail = (row: NewsCandidate) => {
-  router.push({ path: '/heron/topic-detail', query: { candidateId: row.candidateId } });
+  router.push({ path: '/heron/topic-detail', query: { candidateId: row.id } });
 };
 
 /** 认领是持久操作：同用户重复点击由后端幂等返回同一作品。 */
 const handleClaim = async (row: NewsCandidate) => {
-  const res = await claimNewsCandidate(row.candidateId);
+  const res = await claimNewsCandidate(row.id);
   modal.msgSuccess('已认领，可在视频作品里继续编辑');
   await getList();
-  if (res.data?.workId) {
-    router.push({ path: '/heron/work-studio', query: { workId: res.data.workId } });
+  if (res.data?.id) {
+    router.push({ path: '/heron/work-studio', query: { workId: res.data.id } });
   }
 };
 

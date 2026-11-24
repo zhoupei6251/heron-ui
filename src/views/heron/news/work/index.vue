@@ -140,7 +140,7 @@ const { resetQuery } = useSearchReset({
 
 /** 作品详情是独立页面而不是抽屉：创作动作多，抽屉装不下 */
 const openStudio = (row: NewsWork) => {
-  router.push({ path: '/heron/work-studio', query: { workId: row.workId } });
+  router.push({ path: '/heron/work-studio', query: { workId: row.id } });
 };
 
 onMounted(() => {

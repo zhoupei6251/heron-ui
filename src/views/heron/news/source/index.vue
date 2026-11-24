@@ -384,7 +384,7 @@ const handleEnablePlatforms = async () => {
 /** 修改按钮操作 */
 const handleUpdate = async (row: Partial<NewsSource>) => {
   reset();
-  const res = await getNewsSource(row.sourceId!);
+  const res = await getNewsSource(row.id!);
   Object.assign(form.value, res.data);
   showDialog('修改新闻来源');
 };
@@ -416,7 +416,7 @@ const handleDelete = async (row: Partial<NewsSource>) => {
   } catch {
     return;
   }
-  await delNewsSource(row.sourceId!);
+  await delNewsSource(row.id!);
   modal.msgSuccess('删除成功');
   await getList();
 };
@@ -437,7 +437,7 @@ const handleFetch = async (row: Partial<NewsSource>) => {
   } catch {
     return;
   }
-  await fetchNewsSource(row.sourceId!);
+  await fetchNewsSource(row.id!);
   modal.msgSuccess('已提交采集');
   await getList();
 };

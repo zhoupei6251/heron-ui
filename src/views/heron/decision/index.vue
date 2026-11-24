@@ -138,7 +138,7 @@
       />
     </el-card>
 
-    <el-dialog :title="'决策 ' + (detail?.decisionId || '')" :model-value="detailVisible" width="760px" append-to-body
+    <el-dialog :title="'决策 ' + (detail?.id || '')" :model-value="detailVisible" width="760px" append-to-body
                @update:model-value="detailVisible = $event">
       <el-descriptions v-if="detail" :column="2" border>
         <el-descriptions-item label="判断">
@@ -322,7 +322,7 @@ const resetQuery = () => {
 };
 
 const openDetail = async (row: ContentDecision) => {
-  const res = await getDecision(row.decisionId);
+  const res = await getDecision(row.id);
   detail.value = res.data;
   detailVisible.value = true;
 };
@@ -372,7 +372,7 @@ const handlePromote = async (row: ContentDecision) => {
     }
   }
   try {
-    const res = await promoteDecision(row.decisionId, verificationOverride);
+    const res = await promoteDecision(row.id, verificationOverride);
     await finishPromote(res.data?.candidateId);
   } catch (error) {
     if (!errorText(error).includes('证据链')) throw error;
@@ -389,7 +389,7 @@ const handlePromote = async (row: ContentDecision) => {
       modal.msgWarning('证据链不完整必须有放行理由');
       return;
     }
-    const res = await promoteDecision(row.decisionId, verificationOverride, evidenceOverride);
+    const res = await promoteDecision(row.id, verificationOverride, evidenceOverride);
     await finishPromote(res.data?.candidateId);
   }
 };
@@ -404,10 +404,10 @@ const submitDecide = async () => {
   decide.value.submitting = true;
   try {
     if (decide.value.accepted) {
-      await acceptDecision(target.decisionId, decide.value.note || undefined);
+      await acceptDecision(target.id, decide.value.note || undefined);
       modal.msgSuccess('已采纳');
     } else {
-      await rejectDecision(target.decisionId, decide.value.note.trim());
+      await rejectDecision(target.id, decide.value.note.trim());
       modal.msgSuccess('已否决');
     }
     decide.value.visible = false;

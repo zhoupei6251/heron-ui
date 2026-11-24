@@ -729,7 +729,7 @@ const handleArchive = async (row: ProtoProject) => {
   } catch {
     return;
   }
-  await archiveProtoProject(row.projectId);
+  await archiveProtoProject(row.id);
   modal.msgSuccess('已归档');
   await getList();
 };
@@ -747,16 +747,16 @@ const openProject = async (row: ProtoProject) => {
   versionQuery.value.pageNum = 1;
   workDialog.visible = true;
   try {
-    await reloadProject(row.projectId);
+    await reloadProject(row.id);
     await loadVersions();
   } catch {
     workDialog.visible = false;
     return;
   }
-  const current = versions.value.find(version => version.versionId === project.value?.currentVersionId);
+  const current = versions.value.find(version => version.id === project.value?.currentVersionId);
   if (current) selectVersion(current);
   if (project.value?.activeTask) {
-    void watchTask(project.value.activeTask.taskId);
+    void watchTask(project.value.activeTask.id);
   }
 };
 
@@ -764,7 +764,7 @@ const reloadProject = async (projectId: string) => {
   const res = await getProtoProject(projectId);
   project.value = res.data;
   draftForm.value = {
-    projectId: res.data.projectId,
+    projectId: res.data.id,
     name: res.data.name,
     requirement: res.data.requirement,
     canvas: res.data.canvas,
@@ -797,7 +797,7 @@ const watchTask = async (taskId: string) => {
       return;
     }
     await Promise.all([reloadProject(res.data.bizId), loadVersions()]);
-    const current = versions.value.find(version => version.versionId === project.value?.currentVersionId);
+    const current = versions.value.find(version => version.id === project.value?.currentVersionId);
     if (current) selectVersion(current);
     void getList();
   } catch {
@@ -810,7 +810,7 @@ const loadVersions = async () => {
   if (!project.value) return;
   versionLoading.value = true;
   try {
-    const res = await listProtoVersions(project.value.projectId, versionQuery.value);
+    const res = await listProtoVersions(project.value.id, versionQuery.value);
     versions.value = res.data?.rows || [];
     versionTotal.value = res.data?.total || 0;
   } finally {
@@ -845,9 +845,9 @@ const handleSaveDraft = () => {
     if (!valid || !project.value) return;
     savingDraft.value = true;
     try {
-      await updateProtoProject(project.value.projectId, draftForm.value);
+      await updateProtoProject(project.value.id, draftForm.value);
       modal.msgSuccess('草稿已保存');
-      await reloadProject(project.value.projectId);
+      await reloadProject(project.value.id);
     } finally {
       savingDraft.value = false;
     }
@@ -863,15 +863,15 @@ const handleGenerate = async () => {
   }
   generating.value = true;
   try {
-    const res = await generateProto(project.value.projectId, {
+    const res = await generateProto(project.value.id, {
       requestKey: generateKey,
       expectedRevision: draftForm.value.expectedRevision
     });
-    modal.msgSuccess(`已受理，任务 ${res.data.taskId}`);
+    modal.msgSuccess(`已受理，任务 ${res.data.id}`);
     generateKey = newRequestKey();
-    await reloadProject(project.value.projectId);
+    await reloadProject(project.value.id);
     await loadVersions();
-    void watchTask(res.data.taskId);
+    void watchTask(res.data.id);
   } finally {
     generating.value = false;
   }
@@ -885,7 +885,7 @@ const handleCancelTask = async () => {
   } catch {
     return;
   }
-  await cancelProduction(liveTask.value.taskId);
+  await cancelProduction(liveTask.value.id);
   modal.msgSuccess('已提交取消');
 };
 
@@ -893,14 +893,14 @@ const handleCancelTask = async () => {
 const handlePreview = async (file: ProductionFile) => {
   if (!project.value || !selected.value) return;
   releasePreview();
-  const blob = await fetchProtoPreview(project.value.projectId, selected.value.versionId, file.artifactId);
+  const blob = await fetchProtoPreview(project.value.id, selected.value.id, file.artifactId);
   previewUrl.value = URL.createObjectURL(blob);
 };
 
 const handleReviewDownload = (file: ProductionFile) => {
   if (!project.value || !selected.value) return;
   void download(
-    `/heron/proto/${project.value.projectId}/versions/${selected.value.versionId}/review-download`,
+    `/heron/proto/${project.value.id}/versions/${selected.value.id}/review-download`,
     { artifactId: file.artifactId },
     `proto-v${selected.value.versionNo}-${file.kind}${fileSuffix[file.kind] ?? ''}`
   );
@@ -910,7 +910,7 @@ const handleReviewDownload = (file: ProductionFile) => {
 const handleDownload = (file: ProductionFile) => {
   if (!project.value || !selected.value || !rpFile.value) return;
   void download(
-    `/heron/proto/${project.value.projectId}/versions/${selected.value.versionId}/download`,
+    `/heron/proto/${project.value.id}/versions/${selected.value.id}/download`,
     { artifactId: file.artifactId, rpSha256: rpFile.value.sha256 },
     `${project.value.name}-v${selected.value.versionNo}.rp`
   );
@@ -925,7 +925,7 @@ const handleReview = () => {
     }
     reviewing.value = true;
     try {
-      const res = await reviewProtoVersion(project.value.projectId, selected.value.versionId, {
+      const res = await reviewProtoVersion(project.value.id, selected.value.id, {
         ...reviewForm.value,
         rpSha256: rpSha.value,
         previewSha256: previewSha.value
@@ -944,7 +944,7 @@ const handleVerify = async () => {
   if (!project.value || !selected.value) return;
   verifying.value = true;
   try {
-    const res = await verifyProtoVersion(project.value.projectId, selected.value.versionId, {
+    const res = await verifyProtoVersion(project.value.id, selected.value.id, {
       ...verificationForm.value,
       requestKey: verifyKey,
       rpSha256: rpSha.value
@@ -960,7 +960,7 @@ const handleVerify = async () => {
 const reloadVersion = async () => {
   if (!project.value || !selected.value) return;
   try {
-    const res = await getProtoVersion(project.value.projectId, selected.value.versionId);
+    const res = await getProtoVersion(project.value.id, selected.value.id);
     selectVersion(res.data);
   } catch {
     // 取回失败不覆盖当前选中态
@@ -976,7 +976,7 @@ const handleDeliver = async () => {
   }
   delivering.value = true;
   try {
-    await deliverProtoVersion(project.value.projectId, selected.value.versionId, {
+    await deliverProtoVersion(project.value.id, selected.value.id, {
       requestKey: deliverKey,
       rpSha256: rpSha.value,
       previewSha256: previewSha.value

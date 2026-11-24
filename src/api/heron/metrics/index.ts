@@ -157,7 +157,7 @@ export const getMetricReference = (dimension: InsightDimension, bucketValue: str
 };
 
 export interface NewsMetric {
-  metricId: string;
+  id: string;
   versionId: string;
   platform: string;
   plays?: number;

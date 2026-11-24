@@ -7,7 +7,7 @@ export interface NewsCandidateQuery extends PageQuery {
 }
 
 export interface NewsCandidate {
-  candidateId: string;
+  id: string;
   title: string;
   summary: string;
   /** JSON 文本：来源证据条目与截断标记，前端只展示不编辑。 */

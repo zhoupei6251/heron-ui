@@ -12,9 +12,9 @@ vi.mock('@/plugins/modal', () => ({ default: { msgSuccess: vi.fn(), msgWarning: 
 vi.mock('../heron-time', () => ({ utcText: (value?: string) => value || '-' }));
 
 const version = (status: 'submitted' | 'unknown' | 'not_published' | 'published'): NewsVideoVersion => ({
-  workId: '1', versionId: '2', versionNo: 1, reviewStatus: 'approved', taskStatus: 'succeeded',
+  workId: '1', id: '2', versionNo: 1, reviewStatus: 'approved', taskStatus: 'succeeded',
   reviewVideoSha: 'a'.repeat(64), reviewContactSha: 'b'.repeat(64),
-  publishAttempt: { attemptId: '3', versionId: '2', videoSha: 'a'.repeat(64), source: 'douyin-cli',
+  publishAttempt: { id: '3', versionId: '2', videoSha: 'a'.repeat(64), source: 'douyin-cli',
     account: 'heron', status, startedAt: '2026-11-18T04:00:00' }
 });
 

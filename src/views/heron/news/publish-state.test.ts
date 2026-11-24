@@ -4,10 +4,10 @@ import { publicationState, confirmationMessage, canSubmitReviewedVersion, resolu
 
 const sha = 'a'.repeat(64);
 const version = (changes: Partial<NewsVideoVersion> = {}): NewsVideoVersion => ({
-  workId: '1', versionId: '2', versionNo: 1, reviewStatus: 'approved', taskStatus: 'succeeded',
+  workId: '1', id: '2', versionNo: 1, reviewStatus: 'approved', taskStatus: 'succeeded',
   reviewVideoSha: sha, reviewContactSha: 'b'.repeat(64), ...changes
 });
-const attempt = { attemptId: '3', versionId: '2', videoSha: sha, source: 'douyin-cli', account: 'heron', status: 'submitted' as const };
+const attempt = { id: '3', versionId: '2', videoSha: sha, source: 'douyin-cli', account: 'heron', status: 'submitted' as const };
 const form = { decision: 'published' as const, reason: '已核对平台', uploadStopped: false,
   workUrl: 'https://www.douyin.com/video/7400000000000000000', account: 'heron', publishedEpoch: '1794974400000' };
 
