@@ -1,76 +1,182 @@
-## 平台简介
+# Heron Console
 
-- 本仓库为前端技术栈 [Vue3](https://v3.cn.vuejs.org) + [TS](https://www.typescriptlang.org/) + [Element Plus](https://element-plus.org/zh-CN) + [Vite](https://cn.vitejs.dev) 版本。
-- 官方项目: 基于 React + Ant Design 版本前端项目 [plus-ui-react](https://gitee.com/JavaLionLi/plus-ui/tree/6.X-React/)
-- 成员项目: 基于 vben5(ant-design-vue) 的前端项目 [ruoyi-plus-vben5](https://gitee.com/dapppp/ruoyi-plus-vben5)
-- 成员项目: 基于soybean 的前端项目 [ruoyi-plus-soybean](https://gitee.com/xlsea/ruoyi-plus-soybean)
+> Heron 的内容生产、审核、发布与原型交付控制台。
 
-## 配套后端代码仓库地址
+Heron Console 是 [Heron 后端](https://github.com/zhoupei6251/heron) 的配套前端，基于 plus-ui 6.1.0 构建。它保留若依的登录、角色、菜单、审计、监控和工作流能力，同时提供新闻视频生产线和原型工坊的完整操作界面。
 
-| 介绍              | 项目名           | 项目地址                                                                                                                                                                       |
-| ----------------- | :--------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 🔥 分布式集群框架 | RuoYi-Vue-Plus   | - [Gitee](https://gitee.com/dromara/RuoYi-Vue-Plus)<br> - [GitHub](https://github.com/dromara/RuoYi-Vue-Plus)<br> - [GitCode](https://gitcode.com/dromara/RuoYi-Vue-Plus)      |
-| 🔥 微服务框架     | RuoYi-Cloud-Plus | - [Gitee](https://gitee.com/dromara/RuoYi-Cloud-Plus)<br>- [GitHub](https://github.com/dromara/RuoYi-Cloud-Plus)<br> - [GitCode](https://gitcode.com/dromara/RuoYi-Cloud-Plus) |
+本文以当前源码为准。业务菜单由后端动态下发，页面能否访问取决于菜单种子、角色和按钮权限。
 
-## 分支说明
+## 业务页面
 
-- 6.X分支(稳定发布主分支 生产可用)
-- dev分支(开发分支 开发过程中使用)
+| 业务域 | 主要页面 | 源码位置 |
+| --- | --- | --- |
+| 选题与来源 | 选题雷达、选题详情、新闻来源、NewsNow 平台目录 | `src/views/heron/news/topic`、`src/views/heron/news/source` |
+| 编辑与作品 | 编辑策划、视频作品、作品工作室、分镜与稿件 | `src/views/heron/editorial`、`src/views/heron/news/work` |
+| 生产与审片 | 生产任务、能力检查、审片队列、质量报告、抽帧回看 | `src/views/heron/production`、`src/views/heron/review` |
+| 发布与表现 | 发布记录、发布尝试核对、内容表现、反馈与建议 | `src/views/heron/publish`、`src/views/heron/analytics` |
+| 生产资料 | 数据集、视频模板 | `src/views/heron/asset/dataset`、`src/views/heron/asset/template` |
+| 原型工坊 | 原型项目、版本、审核、原生验证与交付 | `src/views/heron/proto` |
+| 研究与决策 | 研究任务、内容决策、策略假设与成本 | `src/views/heron/research`、`src/views/heron/decision` |
 
-## 前端运行
+新闻线覆盖“热点 → 候选 → 认领 → 写稿 → 生成 → 审片 → 确认 → 发布回执”的操作链路。原型线覆盖“需求 → 生成 → 审核 → Axure 原生验证 → 交付”的版本流程。
 
-```bash
-# 安装依赖
-pnpm install --registry=https://registry.npmmirror.com
+## 技术栈
 
-# 启动服务
-pnpm dev
+| 领域 | 当前实现 |
+| --- | --- |
+| 框架 | Vue 3.5、TypeScript 6、Vite 8 |
+| UI | Element Plus 2.14、Vxe Table、ECharts 6 |
+| 状态与路由 | Pinia 4、Vue Router 5 |
+| 样式 | UnoCSS 66、Sass |
+| 请求与加密 | Axios、AES / RSA 接口加密 |
+| 工程工具 | pnpm 10.34.5、oxlint、oxfmt、vue-tsc |
 
-# 构建生产环境
-pnpm build:prod
+Node.js 支持 `22.12+`、`24+` 和 `26+`。仓库使用 pnpm，并固定了包管理器版本。
 
-# 前端访问地址 http://localhost:80
+## 应用结构
+
+```mermaid
+flowchart LR
+    LOGIN[登录] --> GUARD[路由守卫]
+    GUARD --> MENU[后端菜单]
+    MENU --> ROUTES[动态路由]
+    ROUTES --> VIEWS[Heron 业务页面]
+    VIEWS --> API[src/api/heron]
+    API --> REQUEST[统一请求层]
+    REQUEST --> BACKEND[Heron 后端]
 ```
 
-## 本框架与RuoYi的业务差异
+- `src/router` 只注册登录、首页、个人中心等公共路由。
+- `src/store/modules/permission.ts` 把后端菜单转成动态路由，并按角色、权限过滤。
+- `src/api/heron` 按业务域组织接口与类型，多数模块采用 `index.ts + types.ts`。
+- `src/utils/request.ts` 统一处理 Token、客户端标识、防重复提交、接口加解密和错误提示。
+- `src/layout` 提供侧边栏、顶部导航、TagsView、设置抽屉、移动端适配和 Heron 健康条。
 
-| 业务         | 功能说明                                                      | 本框架 | RuoYi                         |
-| ------------ | ------------------------------------------------------------- | ------ | ----------------------------- |
-| 用户管理     | 用户的管理配置 如:新增用户、分配用户所属部门、角色、岗位等    | 支持   | 支持                          |
-| 部门管理     | 配置系统组织机构（公司、部门、小组） 树结构展现支持数据权限   | 支持   | 支持                          |
-| 岗位管理     | 配置系统用户所属担任职务                                      | 支持   | 支持                          |
-| 菜单管理     | 配置系统菜单、操作权限、按钮权限标识等                        | 支持   | 支持                          |
-| 角色管理     | 角色菜单权限分配、设置角色按机构进行数据范围权限划分          | 支持   | 支持                          |
-| 字典管理     | 对系统中经常使用的一些较为固定的数据进行维护                  | 支持   | 支持                          |
-| 参数管理     | 对系统动态配置常用参数                                        | 支持   | 支持                          |
-| 通知公告     | 系统通知公告信息发布维护                                      | 支持   | 支持                          |
-| 操作日志     | 系统正常操作日志记录和查询 系统异常信息日志记录和查询         | 支持   | 支持                          |
-| 登录日志     | 系统登录日志记录查询包含登录异常                              | 支持   | 支持                          |
-| 文件管理     | 系统文件展示、上传、下载、删除等管理                          | 支持   | 无                            |
-| 文件配置管理 | 系统文件上传、下载所需要的配置信息动态添加、修改、删除等管理  | 支持   | 无                            |
-| 在线用户管理 | 已登录系统的在线用户信息监控与强制踢出操作                    | 支持   | 支持                          |
-| 定时任务     | 运行报表、任务管理(添加、修改、删除)、日志管理、执行器管理等  | 支持   | 仅支持任务与日志管理          |
-| 代码生成     | 多数据源前后端代码的生成（java、html、xml、sql）支持CRUD下载  | 支持   | 仅支持单数据源                |
-| 系统接口     | 根据业务代码自动生成相关的api接口文档                         | 支持   | 支持                          |
-| 服务监控     | 监视集群系统CPU、内存、磁盘、堆栈、在线日志、Spring相关配置等 | 支持   | 仅支持单机CPU、内存、磁盘监控 |
-| 缓存监控     | 对系统的缓存信息查询，命令统计等。                            | 支持   | 支持                          |
-| 在线构建器   | 拖动表单元素生成相应的HTML代码。                              | 支持   | 支持                          |
-| 使用案例     | 系统的一些功能案例                                            | 支持   | 不支持                        |
+## 快速开始
 
-## 演示图例
+### 环境要求
 
-|                                                                                            |                                                                                            |
-|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| ![输入图片说明](https://foruda.gitee.com/images/1780299033689126697/868ef1ea_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299052163404649/8d94165d_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299074949590692/27f5bfb5_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299108816841231/619a7c57_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299089818500856/862ba805_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299173744267947/95cb0cd3_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299193694706123/28257dc1_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299147525013883/ebcd9dfe_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299220007761523/dc7e27c9_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299235966983519/35b047e1_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299250884681522/e5731314_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299267028602229/230d5428_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299293149732467/19abcf6c_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299311267192779/e665c668_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299327888096947/283a177f_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299348897579356/caac864e_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299376680669014/452585fb_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299843158459866/ceebbb63_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299432356918392/07abdf6a_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299465584172180/a2b2be12_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299491233431530/d88bfa35_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299513358913413/f2f90032_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299527419238776/549cb852_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299553918371792/43bd3bff_1766278.png "屏幕截图") |
-| ![输入图片说明](https://foruda.gitee.com/images/1780299586662735625/1107a3ee_1766278.png "屏幕截图") | ![输入图片说明](https://foruda.gitee.com/images/1780299613342135530/526d7859_1766278.png "屏幕截图") |
+- Node.js 22.12+、24+ 或 26+
+- pnpm 10+
+- 可访问的 Heron 后端，默认开发端口 `8085`
+
+### 1. 安装依赖
+
+```bash
+pnpm install --frozen-lockfile
+```
+
+### 2. 配置后端代理
+
+开发环境默认把 `/dev-api` 转发到 `http://localhost:8085`。后端地址不同，可在 `.env.development.local` 中覆盖：
+
+```dotenv
+VITE_APP_PROXY_TARGET=http://localhost:8085
+```
+
+`*.local` 已被 Git 忽略。前后端的 `VITE_APP_ENCRYPT` / `api-decrypt.enabled` 和 RSA 密钥必须配套，否则登录后的请求无法正常解密。
+
+### 3. 启动开发服务
+
+```bash
+pnpm dev
+```
+
+默认访问地址为 `http://localhost:80`。端口被占用时，修改 `.env.development` 中的 `VITE_APP_PORT`。
+
+### 4. 登录与菜单
+
+先在后端准备账号、角色和 Heron 菜单种子。登录成功后，前端会请求用户信息和 `/system/menu/getRouters`，再注册当前账号可见的业务页面。仅启动前端不会自动补齐菜单或权限。
+
+## 常用命令
+
+| 命令 | 用途 |
+| --- | --- |
+| `pnpm dev` | 启动开发服务 |
+| `pnpm exec vue-tsc --noEmit` | TypeScript 与 Vue 类型检查 |
+| `pnpm lint` | 对 `src` 执行 oxlint |
+| `pnpm lint:fix` | 自动修复可修复的 lint 问题 |
+| `pnpm fmt` | 使用 oxfmt 格式化仓库 |
+| `pnpm build` | 生产构建 |
+| `pnpm build:dev` | 开发环境构建 |
+| `pnpm build:prod` | 生产构建，与 `pnpm build` 等价 |
+| `pnpm preview` | 预览构建产物 |
+
+生产环境 API 前缀为 `/prod-api`，需要由 Nginx 或网关转发到后端。`VITE_APP_CONTEXT_PATH` 决定部署子路径，例如 `/admin/`。
+
+## 目录结构
+
+```text
+heron-ui/
+├── src/
+│   ├── api/heron/                  # 业务接口与类型
+│   ├── views/heron/                # 新闻、生产、审片、发布、原型、研究等页面
+│   ├── components/                 # 公共组件与 Heron 健康条
+│   ├── hooks/                      # loading、表单、搜索、表格选择等 hooks
+│   ├── layout/                     # 布局、导航、TagsView、设置抽屉
+│   ├── router/                     # 公共路由
+│   ├── store/                      # Pinia 状态与动态权限
+│   ├── utils/request.ts            # 统一请求、Token、加密与错误处理
+│   ├── types/                      # 全局类型扩展
+│   └── assets/styles/              # 主题、页面壳与公共样式
+├── gen/                            # 代码生成模板，只作骨架
+├── vite.config.ts                  # 开发服务、代理与构建配置
+├── .env.development                # 开发环境变量
+├── .env.production                 # 生产环境变量
+└── package.json                    # 脚本、依赖与 Node/pnpm 要求
+```
+
+## 开发约定
+
+- 页面使用 `<script setup name="Xxx" lang="ts">`，保持 UTF-8、LF、2 空格缩进。
+- 新业务页通常同时维护 `src/api/<module>/<business>/index.ts`、`types.ts` 和 `src/views/<module>/<business>/index.vue`。
+- 请求统一走 `@/utils/request`；下载复用 `download`；`AxiosPromise` 从 `@/utils/api-types` 引入，分页类型从 `@/api/types` 引入。
+- 查询、表单、弹窗、日期范围、表格选择优先复用 `src/hooks` 中的现有能力。
+- 按钮权限使用 `v-hasPermi` 或现有权限工具；页面权限由后端菜单和角色共同决定。
+- 标准页面复用 `search-panel`、`table-panel`、`toolbar-shell`、`data-table`、`right-toolbar`、`pagination` 和 `app-container`。
+- 复杂页面做增量修改，不退回生成器裸模板，也不为单页需求改全局组件样式。
+
+## 基座能力
+
+- Sa-Token 登录态与路由守卫
+- 后端菜单驱动的动态路由和按钮权限
+- 角色、部门、岗位、字典、参数、通知、日志等系统管理
+- 文件与 OSS 配置、在线用户、定时任务、代码生成
+- Spring Boot Admin、SnailJob、工作流等基座入口
+- SSE / WebSocket 消息推送
+- 主题色、深浅侧边栏、深色模式、多种导航布局、TagsView 和移动端适配
+
+## 当前边界
+
+- 页面和 API 已存在，不代表后端生产流水线、采集白名单或发布凭据已经开启。
+- 新闻发布默认使用 `sandbox` 回执；切换到 `douyin-cli` 需要本机命令和账号，作品链接可能需要人工补录。
+- 内容表现依赖人工回填或平台凭据；样本不足时页面不输出方向性结论。
+- 原型生成成功后仍必须经过人工审核和 Axure 原生验证，系统不把“生成成功”等同于“可交付”。
+- 审片页对缺失或损坏产物显示受限状态，不用占位内容冒充真实结果。
+- 产品是单租户自部署，不包含多租户、套餐、计费或第二套 RBAC。
+
+## 验证
+
+修改 TypeScript、Vue、API 或类型后，至少运行：
+
+```bash
+pnpm exec vue-tsc --noEmit
+pnpm lint
+```
+
+修改公共 hooks、组件、布局或构建配置后，再运行：
+
+```bash
+pnpm build
+```
+
+只改文档时不需要启动应用或执行全量构建，但应检查文档中的路径、命令和链接。
+
+## 文档与许可
+
+- [Heron 后端](https://github.com/zhoupei6251/heron)
+- [业务规格](https://github.com/zhoupei6251/heron/blob/dev/docs/plans/2026-10-29-heron-business-spec.md)
+- [项目开发约定](CLAUDE.md)
+- [plus-ui 官方文档](https://plus-doc.dromara.org/)
+
+Heron Console 沿用 MIT 开源许可。使用、修改或分发时请保留仓库中的许可文件与上游署名。
