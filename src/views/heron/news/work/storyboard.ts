@@ -26,12 +26,7 @@ export const SCENE_TYPE_LABELS: Record<string, string> = {
   chart: '图表屏',
   number: '数字屏',
   compare: '对比屏',
-  timeline: '时间轴屏',
-  image: '配图屏',
-  quote: '引用屏',
-  list: '清单屏',
-  rank: '排行屏',
-  qa: '问答屏'
+  image: '配图屏'
 };
 
 export interface StoryboardScene {
