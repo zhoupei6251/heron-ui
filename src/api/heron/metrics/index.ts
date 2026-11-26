@@ -6,7 +6,6 @@ import request from '@/utils/request';
  * 每个维度都能从冻结输入或版本行里直接读出来，读不到的归「未记录」。
  */
 export type InsightDimension =
-  | 'template'
   | 'line'
   | 'angle'
   | 'source'

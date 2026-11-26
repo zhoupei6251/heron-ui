@@ -26,6 +26,5 @@ describe('归因桶值的中文映射', () => {
     expect(bucketText('kind', 'old_kind')).toBe('old_kind');
     expect(bucketText('source', 'unknown_source')).toBe('unknown_source');
     expect(bucketText('line', '未记录')).toBe('未记录');
-    expect(bucketText('template', 'news-9x16')).toBe('news-9x16');
   });
 });

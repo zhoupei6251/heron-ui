@@ -34,7 +34,6 @@ export interface EditorialSelection {
   candidateId?: number;
   dataSourceKey?: string;
   digest?: boolean;
-  templateId?: string;
   storyAngle?: string;
   sourceEvidenceIds?: string[];
 }

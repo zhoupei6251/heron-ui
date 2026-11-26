@@ -123,7 +123,6 @@ export interface NewsWork {
   title: string;
   draft?: string;
   revision: number;
-  templateKey?: string;
   voiceKey?: string;
   currentVersionId?: string;
   activeTaskId?: string;
@@ -136,7 +135,6 @@ export interface NewsDraftForm {
   expectedRevision: number;
   title: string;
   draft: string;
-  templateKey: string;
   voiceKey: string;
 }
 

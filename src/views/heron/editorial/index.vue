@@ -111,8 +111,6 @@
             <dl class="kv">
               <dt>候选</dt>
               <dd class="mono">{{ selection.candidateId ?? '—' }}</dd>
-              <dt>模板</dt>
-              <dd class="mono">{{ selection.templateId || '—' }}</dd>
               <dt>叙事角度</dt>
               <dd>{{ selection.storyAngle || '—' }}</dd>
               <dt>数据源</dt>
@@ -362,22 +360,18 @@ const poolGroups = computed(() => {
 
 /**
  * 参考卡按这次选择里能直接读到的维度取历史表现。
- * 故事角度与模板 id 前端拿得到；栏目要到 Java 侧映射才知道，所以这里只用这两个维度，
+ * 故事角度前端拿得到；栏目要到 Java 侧映射才知道，所以这里只用这一个维度，
  * 拿不到就不请求，不拿别的维度的结论凑数。
  */
 const referenceQuery = computed<{ dimension: InsightDimension; bucketValue: string } | null>(() => {
-  const current = selection.value;
-  const angle = current?.storyAngle?.trim();
+  const angle = selection.value?.storyAngle?.trim();
   if (angle) return { dimension: 'angle', bucketValue: angle };
-  const template = current?.templateId?.trim();
-  if (template) return { dimension: 'template', bucketValue: template };
   return null;
 });
 
 const referenceDimensionLabel = computed(() => {
   const key = referenceQuery.value?.dimension;
   if (key === 'angle') return '叙事角度';
-  if (key === 'template') return '模板';
   return '分组';
 });
 

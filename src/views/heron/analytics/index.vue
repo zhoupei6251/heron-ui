@@ -369,7 +369,6 @@ import { extractErrorMessage } from '@/utils/request';
 import { bucketText } from './buckets';
 
 const tabs: { key: InsightDimension; label: string; bucket: string }[] = [
-  { key: 'template', label: '按模板', bucket: '模板' },
   { key: 'line', label: '按生产线', bucket: '生产线' },
   { key: 'angle', label: '按叙事角度', bucket: '叙事角度' },
   { key: 'source', label: '按来源', bucket: '来源' },
@@ -400,7 +399,7 @@ const hypothesisError = ref('');
  */
 const suggestions = ref<MetricSuggestion[]>([]);
 
-const dimension = ref<InsightDimension>('template');
+const dimension = ref<InsightDimension>('line');
 const insight = ref<PerformanceInsight | null>(null);
 const loading = ref(false);
 const errorText = ref('');

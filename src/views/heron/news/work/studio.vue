@@ -59,8 +59,6 @@
             <dl class="kv">
               <dt>候选</dt>
               <dd class="mono">{{ work.candidateId }}</dd>
-              <dt>模板</dt>
-              <dd class="mono">{{ draftForm.templateKey }}</dd>
               <dt>音色</dt>
               <dd class="mono">{{ draftForm.voiceKey }}</dd>
             </dl>
@@ -645,61 +643,9 @@
           <section class="col-block">
             <h3 class="block-title">创作设置</h3>
             <el-form label-position="top" size="small">
-              <el-form-item label="模板">
-                <el-select v-model="draftForm.templateKey" class="w-full" placeholder="选择版式">
-                  <el-option
-                    v-for="item in templates"
-                    :key="item.key"
-                    :label="`${item.name}${item.visualMode === '3d' ? '·3D' : ''}（${item.key}）`"
-                    :value="item.key"
-                    :disabled="!item.locked"
-                  >
-                    <span>{{ item.name }}{{ item.visualMode === '3d' ? '·3D' : '' }}</span>
-                    <span class="option-hint">{{ item.key }}</span>
-                  </el-option>
-                </el-select>
-                <p class="form-tip">
-                  换模板只影响下一次生成；已产出的版本保留当时冻结的模板与资产指纹。
-                </p>
-              </el-form-item>
-
               <el-form-item label="音色">
                 <el-input :model-value="draftForm.voiceKey" disabled />
-                <p class="form-tip">音色由模板的资产锁固定，换音色要改模板并重新生成 LOCK。</p>
-              </el-form-item>
-
-              <el-form-item v-if="selectedTemplate" label="当前模板能力">
-                <div class="capability">
-                  <div class="cap-row">
-                    <span class="cap-label">视觉模式</span>
-                    <span class="cap-value mono">{{ selectedTemplate.visualMode === '3d' ? '3D（空间数据）' : '2D' }}</span>
-                  </div>
-                  <div class="cap-row">
-                    <span class="cap-label">画幅</span>
-                    <span class="cap-value mono">{{ selectedTemplate.aspectRatio || '-' }}</span>
-                  </div>
-                  <div class="cap-row">
-                    <span class="cap-label">推荐时长</span>
-                    <span class="cap-value mono">
-                      {{ selectedTemplate.minDuration ?? '-' }}–{{ selectedTemplate.maxDuration ?? '-' }} 秒
-                    </span>
-                  </div>
-                  <div class="cap-row">
-                    <span class="cap-label">支持场景</span>
-                    <span class="cap-value">
-                      <el-tag
-                        v-for="scene in selectedTemplate.supportedSceneTypes || []"
-                        :key="scene"
-                        size="small"
-                        effect="plain"
-                        :type="scene === 'image' ? 'success' : 'info'"
-                      >
-                        {{ scene }}
-                      </el-tag>
-                      <span v-if="!(selectedTemplate.supportedSceneTypes || []).length" class="muted">未声明</span>
-                    </span>
-                  </div>
-                </div>
+                <p class="form-tip">音色由服务端在认领时锁定。</p>
               </el-form-item>
             </el-form>
           </section>
@@ -739,7 +685,6 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { NewsDraftForm, NewsReviewForm, NewsVideoVersion, NewsWork } from '@/api/heron/newsWork/types';
 import type { ProductionCapabilities, ProductionFile, ProductionTask } from '@/api/heron/production/types';
-import type { VideoTemplate } from '@/api/heron/template/types';
 import {
   fetchNewsPreview,
   fetchQualityFrames,
@@ -755,7 +700,6 @@ import type { NewsQualityFrame } from '@/api/heron/newsWork/types';
 import { getProduction, getProductionCapabilities, cancelProduction } from '@/api/heron/production';
 import { listNewsMetrics, saveNewsMetric } from '@/api/heron/metrics';
 import type { NewsMetric } from '@/api/heron/metrics';
-import { listVideoTemplate } from '@/api/heron/template';
 import modal from '@/plugins/modal';
 import { download } from '@/utils/request';
 import { utcText } from '../../heron-time';
@@ -826,15 +770,12 @@ const draftFormRef = ref<ElFormInstance>();
 const reviewFormRef = ref<ElFormInstance>();
 
 const work = ref<NewsWork>();
-const templates = ref<VideoTemplate[]>([]);
-// 模板与音色由模板目录的 LOCK.json 锁定；服务端在认领时已经选定，这两个常量只在服务端没给值时兜底
-const LOCKED_TEMPLATE_KEY = 'news-9x16';
+// 音色由服务端在认领时选定；这个常量只在服务端没给值时兜底
 const LOCKED_VOICE_KEY = 'zh-CN-XiaoxiaoNeural';
 const draftForm = ref<NewsDraftForm>({
   expectedRevision: 0,
   title: '',
   draft: '',
-  templateKey: LOCKED_TEMPLATE_KEY,
   voiceKey: LOCKED_VOICE_KEY
 });
 const savingDraft = ref(false);
@@ -852,11 +793,6 @@ const reviewForm = ref<NewsReviewForm>({ decision: 'approved', contactSha256: ''
 const metricForm = ref<{ plays?: number; completion?: number; likes?: number }>({});
 const latestMetric = ref<NewsMetric>();
 const metricSaving = ref(false);
-
-/** 右栏展示当前选中模板的能力：用户在选模板时就该看到它装不装得下这条内容。 */
-const selectedTemplate = computed(() =>
-  templates.value.find(item => item.key === draftForm.value.templateKey)
-);
 
 const metricPercent = (rate?: number) => (rate === null || rate === undefined ? '-' : `${Math.round(rate * 100)}%`);
 
@@ -937,7 +873,6 @@ const draftRules: Record<string, any> = {
     { required: true, message: '口播稿不能为空', trigger: 'blur' },
     { max: 16000, message: '口播稿过长', trigger: 'blur' }
   ],
-  templateKey: [{ required: true, pattern: /^[a-zA-Z0-9_-]{1,80}$/, message: '模板标识不合法', trigger: 'blur' }],
   voiceKey: [{ required: true, pattern: /^[a-zA-Z0-9_-]{1,80}$/, message: '音色标识不合法', trigger: 'blur' }]
 };
 const reviewRules: Record<string, any> = {
@@ -1059,7 +994,6 @@ const reloadWork = async (workId: string) => {
     expectedRevision: res.data.revision,
     title: res.data.title,
     draft: res.data.draft || '',
-    templateKey: res.data.templateKey || LOCKED_TEMPLATE_KEY,
     voiceKey: res.data.voiceKey || LOCKED_VOICE_KEY
   };
 };
@@ -1306,11 +1240,6 @@ const handleSaveDraft = () => {
 
 const handleGenerate = async () => {
   if (!work.value) return;
-  // 换了模板就得先把草稿存下去，否则这次生成用的还是服务端记录的旧模板
-  if (draftForm.value.templateKey !== work.value.templateKey) {
-    await handleSaveDraft();
-    if (draftForm.value.templateKey !== work.value?.templateKey) return;
-  }
   try {
     await modal.confirm('发起生成会排队执行真实渲染，能力未放行时后端会直接拒绝。确定现在发起？');
   } catch {
@@ -1419,15 +1348,6 @@ const loadCapabilities = async () => {
   }
 };
 
-const loadTemplates = async () => {
-  try {
-    const res = await listVideoTemplate();
-    templates.value = res.data || [];
-  } catch {
-    // 模板目录读不到时右栏退化成只读文本框，不影响已有流程
-  }
-};
-
 const load = async () => {
   stopWatch();
   releasePreview();
@@ -1472,7 +1392,6 @@ onBeforeUnmount(() => {
 });
 onMounted(() => {
   void loadCapabilities();
-  void loadTemplates();
   void load();
 });
 watch(() => route.query.workId, load);
@@ -2019,41 +1938,6 @@ watch(() => route.query.versionId, () => { if (!loading.value) void selectReques
   color: var(--app-text-faint);
   font-size: var(--app-font-size-2xs);
   line-height: 1.6;
-}
-
-.option-hint {
-  float: right;
-  color: var(--app-text-faint);
-  font-family: var(--app-font-mono);
-  font-size: var(--app-font-size-2xs);
-}
-
-.capability {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-
-.cap-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: var(--app-font-size-xs);
-}
-
-.cap-label {
-  color: var(--app-text-faint);
-  flex-shrink: 0;
-}
-
-.cap-value {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  color: var(--app-text-body);
 }
 
 .check-list {
