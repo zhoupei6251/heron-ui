@@ -102,6 +102,7 @@ import { usePermissionStore } from '@/store/modules/permission';
 import { useUserStore } from '@/store/modules/user';
 import modal from '@/plugins/modal';
 import { utcText } from '@/views/heron/heron-time';
+import { productionBizText } from '@/views/heron/production/task-state';
 
 const permissionStore = usePermissionStore();
 const userStore = useUserStore();
@@ -173,7 +174,7 @@ const needs = computed<Need[]>(() => {
     items.push({
       key: `task-${task.id}`,
       badge: '任务失败',
-      title: `${task.bizType === 'news_video' ? '新闻' : '原型'} ${task.id}`,
+      title: `${productionBizText[task.bizType] || task.bizType} ${task.id}`,
       detail: [task.stage ? `阶段 ${task.stage}` : '', task.errorCode || '', task.errorReason || '']
         .filter(Boolean)
         .join(' · '),

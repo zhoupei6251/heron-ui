@@ -1,4 +1,9 @@
-export type ProductionBizType = 'news_video' | 'prototype';
+export type ProductionBizType =
+  | 'news_explainer'
+  | 'data_board'
+  | 'trend_insight'
+  | 'knowledge_explainer'
+  | 'music_video';
 
 export type ProductionStatus = 'queued' | 'running' | 'cancelling' | 'succeeded' | 'failed' | 'cancelled';
 
@@ -68,11 +73,9 @@ export interface ProductionCapability {
   available: boolean;
   reasons: string[];
   capacity: number;
-  /** 仅原型线返回：人工原生验证要比对的 Axure 版本，新闻线为空。 */
-  targetAxureVersion?: string;
 }
 
 export interface ProductionCapabilities {
   news: ProductionCapability;
-  prototype: ProductionCapability;
+  musicVideo: ProductionCapability;
 }

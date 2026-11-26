@@ -13,8 +13,11 @@
         <el-form ref="queryFormRef" :model="queryParams" :inline="true" class="query-form">
           <el-form-item label="业务线" prop="bizType">
             <el-select v-model="queryParams.bizType" placeholder="全部业务线" clearable class="w-180">
-              <el-option label="热点新闻" value="news_video" />
-              <el-option label="原型工坊" value="prototype" />
+              <el-option label="文稿解说" value="news_explainer" />
+              <el-option label="数据看板" value="data_board" />
+              <el-option label="趋势洞察" value="trend_insight" />
+              <el-option label="知识解释" value="knowledge_explainer" />
+              <el-option label="音乐视频" value="music_video" />
             </el-select>
           </el-form-item>
           <el-form-item label="状态" prop="status">
@@ -239,12 +242,11 @@ const capabilityReasons = computed(() => {
   if (!capabilities.value) {
     return [];
   }
-  return (['news', 'prototype'] as const).flatMap(key => {
+  return ([['news', '视频线'], ['musicVideo', '音乐视频线']] as const).flatMap(([key, label]) => {
     const capability = capabilities.value?.[key];
     if (!capability || capability.available || !capability.reasons?.length) {
       return [];
     }
-    const label = key === 'news' ? '热点新闻' : '原型工坊';
     return [`${label}当前不可用：${capability.reasons.join('；')}`];
   });
 });
@@ -348,7 +350,7 @@ const handleVisible = () => {
 };
 
 const loadCapabilities = async () => {
-  if (!checkPermi(['heron:newsWork:query', 'heron:proto:query'])) {
+  if (!checkPermi(['heron:newsWork:query', 'heron:musicVideo:query'])) {
     return;
   }
   try {

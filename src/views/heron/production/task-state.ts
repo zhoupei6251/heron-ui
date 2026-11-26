@@ -22,6 +22,9 @@ export const productionStatusTag: Record<ProductionStatus, 'primary' | 'success'
 };
 
 export const productionBizText: Record<string, string> = {
-  news_video: '热点新闻',
-  prototype: '原型工坊'
+  news_explainer: '文稿解说',
+  data_board: '数据看板',
+  trend_insight: '趋势洞察',
+  knowledge_explainer: '知识解释',
+  music_video: '音乐视频'
 };
