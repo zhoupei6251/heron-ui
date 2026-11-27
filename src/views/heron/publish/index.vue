@@ -1,178 +1,258 @@
 <template>
-  <div class="p-2 app-container heron-publish-page">
+  <div class="p-2">
     <el-card shadow="hover" class="table-panel">
       <template #header>
         <div class="toolbar-shell">
           <div class="table-heading">
-            <h3>发布记录</h3>
-            <p>查看发布事实与待核对尝试。已提交、结果未知和已发布分别展示；先核对平台结果，再处理后续提交。</p>
+            <span class="panel-kicker">Publish Inventory</span>
+            <h3>待发布池</h3>
+            <p>共 {{ total }} 条；自动发布与人工发布共用同一条预占，评分明细可展开。</p>
           </div>
           <div class="toolbar-actions">
-            <right-toolbar v-model:show-search="showSearch" :search="false" @query-table="getList"></right-toolbar>
+            <el-select v-model="queryParams.curationStatus" class="w-160" @change="handleQuery">
+              <el-option label="合格待发布" value="eligible" />
+              <el-option label="待评估" value="pending" />
+              <el-option label="暂缓" value="hold" />
+              <el-option label="已淘汰" value="rejected" />
+              <el-option label="已过期" value="expired" />
+              <el-option label="全部状态" value="" />
+            </el-select>
+            <el-button icon="Refresh" @click="getList()">刷新</el-button>
           </div>
         </div>
       </template>
 
-      <el-table v-loading="loading" border class="data-table" :data="rows">
-        <el-table-column label="作品" min-width="200" show-overflow-tooltip>
+      <el-table v-loading="loading" border :data="rows">
+        <el-table-column type="expand">
           <template #default="{ row }">
-            <router-link class="work-link" :to="{ path: '/heron/work-studio', query: { workId: row.workId, versionId: row.versionId } }">
-              {{ row.workTitle || '作品 ' + row.workId }}
-            </router-link>
+            <div class="score-detail">
+              <el-descriptions :column="1" border size="small">
+                <el-descriptions-item label="AI 评估理由">{{ row.curationReason || '未评估' }}</el-descriptions-item>
+                <el-descriptions-item label="评估版本">{{ row.curatorVersion || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="评估时间">{{ utcText(row.evaluatedAt) }}</el-descriptions-item>
+                <el-descriptions-item label="有效期至">{{ utcText(row.expiresAt) }}</el-descriptions-item>
+              </el-descriptions>
+              <div v-if="scoreItems(row as PublishInventory).length" class="score-list">
+                <div
+                  v-for="item in scoreItems(row as PublishInventory)"
+                  :key="item.name"
+                  class="score-item"
+                >
+                  <span class="score-name">{{ item.name }}</span>
+                  <el-progress :percentage="item.score" :stroke-width="10" class="score-bar" />
+                  <span class="score-note">{{ item.note }}</span>
+                </div>
+              </div>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column label="发布状态" width="190" align="center">
+        <el-table-column label="优先分" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="publicationTag[publicationState(row)]" effect="plain">{{ publicationText[publicationState(row)] }}</el-tag>
+            <span class="score-num">{{ row.priorityScore ?? '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="版本" width="70" align="center">
-          <template #default="{ row }">v{{ row.versionNo }}</template>
-        </el-table-column>
-        <el-table-column label="来源" width="150" align="center">
+        <el-table-column label="封面" width="86">
           <template #default="{ row }">
-            {{ publishSourceText[row.publishSource || row.publishAttempt?.source || ''] || '-' }}
+            <el-image
+              v-if="row.coverUrl"
+              :src="row.coverUrl"
+              :preview-src-list="[row.coverUrl]"
+              fit="cover"
+              class="cover-thumb"
+              preview-teleported
+            />
+            <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="账号" width="130" align="center">
-          <template #default="{ row }">{{ row.publishAccount || row.publishAttempt?.account || '-' }}</template>
+        <el-table-column label="内容线" width="100">
+          <template #default="{ row }">{{ bizLineText[row.bizLine] || row.bizLine }}</template>
         </el-table-column>
-        <el-table-column label="尝试登记时间" width="170" align="center">
-          <template #default="{ row }">{{ timeText(row.publishAttempt?.startedAt) }}</template>
+        <el-table-column label="时长" width="80" align="right">
+          <template #default="{ row }">{{ Math.round((row.durationMs ?? 0) / 1000) }}s</template>
         </el-table-column>
-        <el-table-column label="平台发布时间" width="180" align="center">
+        <el-table-column label="评估状态" width="90">
           <template #default="{ row }">
-            <span v-if="publicationState(row) === 'published'">{{ timeText(row.publishAt) }}</span>
-            <span v-else-if="publicationState(row) === 'sandbox'">不适用（沙箱）</span>
-            <span v-else-if="publicationState(row) === 'legacy_submitted'" class="muted">旧记录：{{ timeText(row.publishAt) }}<br />时间未重新核对</span>
-            <span v-else>尚未确认</span>
+            <el-tag :type="curationTag[row.curationStatus] || 'info'">
+              {{ curationText[row.curationStatus] || row.curationStatus }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="作品链接" min-width="240">
+        <el-table-column label="发布状态" width="90">
           <template #default="{ row }">
-            <a v-if="row.publishUrl && row.publishSource !== 'sandbox'" :href="row.publishUrl" target="_blank" rel="noopener noreferrer">
-              {{ row.publishUrl }}
-            </a>
-            <span v-else-if="row.publishSource === 'douyin-cli'" class="link-missing">待补链接</span>
-            <span v-else class="muted">{{ row.publishSource === 'sandbox' ? '未上抖音' : '平台结果待核对' }}</span>
+            <el-tag :type="publishTag[row.publishStatus] || 'info'" effect="plain">
+              {{ publishText[row.publishStatus] || row.publishStatus }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" align="center" fixed="right">
+        <el-table-column label="作品" prop="workId" min-width="150" show-overflow-tooltip />
+        <el-table-column label="评估时间" width="160">
+          <template #default="{ row }">{{ utcText(row.evaluatedAt) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button
-              v-if="row.publishSource === 'douyin-cli' && !row.publishUrl"
-              v-hasPermi="['heron:newsWork:publish']"
+              v-if="row.curationStatus === 'eligible' && row.publishStatus === 'waiting'"
+              v-hasPermi="['heron:publish:publish']"
               link
               type="primary"
-              @click="openBackfill(row as NewsVideoVersion)"
+              :loading="reservingId === row.id"
+              @click="handleReserve(row as PublishInventory)"
             >
-              补链接
+              立即发布
             </el-button>
-            <router-link v-else-if="isUnresolvedAttempt(row.publishAttempt)" class="work-link"
-              :to="{ path: '/heron/work-studio', query: { workId: row.workId, versionId: row.versionId } }">去核对</router-link>
-            <span v-else class="muted">—</span>
+            <span v-else>-</span>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty :description="emptyText" />
+        </template>
       </el-table>
 
       <pagination
         v-show="total > 0"
-        v-model:page="page.pageNum"
-        v-model:limit="page.pageSize"
+        v-model:page="queryParams.pageNum"
+        v-model:limit="queryParams.pageSize"
         :total="total"
-        @pagination="getList"
+        @pagination="() => getList()"
       />
     </el-card>
-
-    <el-dialog v-model="dialog.visible" title="补作品链接" width="520px" append-to-body>
-      <p class="dialog-hint">命令行在抖音后台提交发布后不回传链接；从抖音后台复制作品地址粘贴进来即可。</p>
-      <el-input v-model="workUrl" placeholder="https://www.douyin.com/video/..." clearable />
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button :loading="saving" :disabled="!workUrl.trim()" type="primary" @click="submitBackfill">确 定</el-button>
-          <el-button @click="dialog.visible = false">取 消</el-button>
-        </div>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
-<script setup name="HeronPublish" lang="ts">
-import type { NewsVideoVersion } from '@/api/heron/newsWork/types';
-import { backfillNewsPublishUrl, listPublishedVersions } from '@/api/heron/newsWork';
-import { useLoading } from '@/hooks/async/useLoading';
-import { useSearchToggle } from '@/hooks/form/useSearchToggle';
-import modal from '@/plugins/modal';
-import { utcText } from '../heron-time';
-import { isUnresolvedAttempt, publicationState, publicationTag, publicationText, publishSourceText } from '../news/publish-state';
+<script setup lang="ts" name="PublishInventory">
+import { listPublishInventory, reservePublishInventory } from '@/api/heron/publish';
+import type { PublishInventory, PublishInventoryQuery } from '@/api/heron/publish/types';
 
-const rows = ref<NewsVideoVersion[]>([]);
+const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+
+const loading = ref(true);
+const rows = ref<PublishInventory[]>([]);
 const total = ref(0);
-const page = ref<PageQuery>({ pageNum: 1, pageSize: 10 });
-const { loading, withLoading } = useLoading(true);
-const { showSearch } = useSearchToggle();
+const reservingId = ref('');
+const queryParams = ref<PublishInventoryQuery>({ pageNum: 1, pageSize: 10, curationStatus: 'eligible' });
 
-const dialog = ref<{ visible: boolean; row?: NewsVideoVersion }>({ visible: false });
-const workUrl = ref('');
-const saving = ref(false);
-
-const timeText = utcText;
+const bizLineText: Record<string, string> = {
+  news_explainer: '文稿解说',
+  data_board: '数据看板',
+  trend_insight: '趋势洞察',
+  knowledge_explainer: '知识解释',
+  music_video: '音乐视频'
+};
+const curationText: Record<string, string> = {
+  pending: '待评估',
+  eligible: '合格',
+  hold: '暂缓',
+  rejected: '淘汰',
+  expired: '过期'
+};
+const curationTag: Record<string, 'primary' | 'success' | 'info' | 'warning' | 'danger'> = {
+  eligible: 'success',
+  hold: 'warning',
+  rejected: 'danger'
+};
+const publishText: Record<string, string> = {
+  waiting: '待发布',
+  reserved: '已预占',
+  publishing: '发布中',
+  unknown: '待核对',
+  published: '已发布',
+  withdrawn: '已撤回',
+  superseded: '已替代'
+};
+const publishTag: Record<string, 'primary' | 'success' | 'info' | 'warning' | 'danger'> = {
+  waiting: 'info',
+  reserved: 'warning',
+  publishing: 'warning',
+  published: 'success',
+  unknown: 'danger'
+};
+const emptyText = computed(
+  () => (queryParams.value.curationStatus === 'eligible' ? '库存暂无合格条目，宁缺毋滥' : '暂无记录')
+);
 
 const getList = async () => {
-  await withLoading(async () => {
-    const res = await listPublishedVersions(page.value);
-    rows.value = res.data?.rows || [];
-    total.value = res.data?.total || 0;
-  });
-};
-
-const openBackfill = (row: NewsVideoVersion) => {
-  dialog.value = { visible: true, row };
-  workUrl.value = '';
-};
-
-const submitBackfill = async () => {
-  const row = dialog.value.row;
-  const url = workUrl.value.trim();
-  if (!row || !url) return;
-  saving.value = true;
+  loading.value = true;
   try {
-    await backfillNewsPublishUrl(row.workId, row.id, url);
-    modal.msgSuccess('作品链接已补上');
-    dialog.value = { visible: false };
-    await getList();
+    const { data } = await listPublishInventory(queryParams.value);
+    rows.value = data.rows;
+    total.value = data.total;
   } finally {
-    saving.value = false;
+    loading.value = false;
   }
 };
 
-onMounted(getList);
+const handleQuery = () => {
+  queryParams.value.pageNum = 1;
+  getList();
+};
+
+const handleReserve = async (row: PublishInventory) => {
+  reservingId.value = row.id;
+  try {
+    await reservePublishInventory(row.id);
+    await proxy?.$modal.msgSuccess('已预占并提交发布链');
+    await getList();
+  } catch (e) {
+    await getList();
+  } finally {
+    reservingId.value = '';
+  }
+};
+
+const scoreItems = (row: PublishInventory): { name: string; score: number; note: string }[] => {
+  if (!row.scoreBreakdown) return [];
+  try {
+    const parsed = JSON.parse(row.scoreBreakdown) as Record<string, { score: number; note?: string }>;
+    return Object.entries(parsed).map(([name, item]) => ({
+      name,
+      score: Math.max(0, Math.min(100, item.score ?? 0)),
+      note: item.note || ''
+    }));
+  } catch {
+    return [];
+  }
+};
+
+const utcText = (value?: string | null): string => (value ? new Date(value).toLocaleString() : '-');
+
+onMounted(() => {
+  getList();
+});
 </script>
 
-<style lang="scss" scoped>
-.table-panel {
-  border: 1px solid var(--app-surface-border);
+<style scoped>
+.cover-thumb {
+  width: 48px;
+  height: 85px;
+  border-radius: 4px;
+  overflow: hidden;
 }
-
-.work-link {
-  color: var(--app-accent-strong);
+.score-num {
+  font-size: 20px;
+  font-weight: 700;
+}
+.score-detail {
+  padding: 8px 16px;
+}
+.score-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+.score-item {
+  display: grid;
+  grid-template-columns: 120px 1fr 220px;
+  align-items: center;
+  gap: 12px;
+}
+.score-name {
   font-weight: 600;
 }
-
-.link-missing {
-  color: var(--app-warning);
-  font-size: var(--app-font-size-xs);
+.score-bar {
+  flex: 1;
 }
-
-.muted {
-  color: var(--app-text-faint);
-  font-size: var(--app-font-size-xs);
-}
-
-.dialog-hint {
-  margin: 0 0 12px;
-  color: var(--app-text-muted);
-  font-size: var(--app-font-size-xs);
-  line-height: 1.7;
+.score-note {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 </style>
